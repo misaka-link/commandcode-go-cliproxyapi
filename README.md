@@ -69,7 +69,7 @@ Without this plugin, a manual CommandCode GOAT / Pro / Max integration must mana
 
 ## Requirements
 
-- **CLIProxyAPI**: `v7.2.138+`
+- **CLIProxyAPI**: `v8.0.50+`
 - **Go Toolchain**: Go 1.26+ (CGO enabled for `-buildmode=c-shared`)
 
 ## v0.1.4 upgrade and release notes
@@ -184,8 +184,9 @@ API keys are not configured in this YAML. CLIProxyAPI auth files are the only so
 
 ### Quota page
 
-Quota is displayed on the plugin's own page. The standard quota capability used by CPA auth-file cards (`QuotaProvider`) is not registered; adding an account through OAuth does not automatically add quota information to those cards.
-The **CommandCode accounts and quota** page (Management Center → **CommandCode**) reads the account surface on the same authority as `base-url`:
+Quota now uses CPA's native quota surfaces. The plugin registers a native `QuotaProvider` (identifier `commandcode`), so each CommandCode auth file shows its quota directly on the Management Center **auth-file cards** and on the **Quota Management** page, with per-account **Refresh quota** and a **Fetch all** action. This requires **CLIProxyAPI v8.0.50 or newer**.
+
+The plugin's own **CommandCode accounts and quota** page (Management Center → **CommandCode**) is retained for adding accounts (paste an API key) and for a per-account overview. It reads the account surface on the same authority as `base-url`:
 
 | Endpoint | Purpose |
 |---|---|
@@ -193,7 +194,7 @@ The **CommandCode accounts and quota** page (Management Center → **CommandCode
 | `GET {authority}/alpha/billing/subscriptions` | Plan id/status |
 | `GET {authority}/alpha/whoami?limits=1` | Account email for the card label |
 
-`{authority}` is derived from `base-url` by trimming its provider path (`/provider/v1`). Cards are host auth files, not `api-keys` entries. Loading the list may automatically query accounts missing an email to fill that information; otherwise refresh is manual and per card. There is no periodic quota polling, and quota values never influence routing.
+`{authority}` is derived from `base-url` by trimming its provider path (`/provider/v1`). Cards are host auth files, not `api-keys` entries. Loading the list may automatically query accounts missing an email to fill that information; otherwise refresh is manual and per card. The plugin page does not poll periodically, and quota values never influence routing.
 
 **Known email-sync limitation**: after discovering an email, the plugin attempts to update the original auth file so both pages can display it. It checks for prior deletion or changes, but the final check and file replacement are not atomic with host edits. Concurrent deletion, disabling, or metadata edits can be overwritten, and a deleted file can be recreated. Keeping email on both pages retains this risk. Wait for quota refreshes to finish before editing auth files, then reload the list to confirm the result.
 

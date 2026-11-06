@@ -2,6 +2,22 @@
 
 User-facing change summary: [ChangeLog](CHANGELOG.md). Supported plans: **CommandCode GOAT / Pro / Max**, not CommandCode Go.
 
+## v0.2.0 — CLIProxyAPI v8, native quota, official logo (2026-11-06)
+
+- Migrate the plugin to CLIProxyAPI v8 and require host **CLIProxyAPI v8.0.50 or newer**.
+- Register a native `QuotaProvider` (identifier `commandcode`): CommandCode quota now appears on the Management Center **auth-file cards** and the **Quota Management** page, with per-account **Refresh quota** and **Fetch all**. The plugin's own **CommandCode accounts and quota** page remains for adding accounts.
+- The Management Center pages now use the official CommandCode wordmark, switching between light and dark themes, with the primary color aligned to brand Burple `#8C4EDD`.
+- Supported plans remain **CommandCode GOAT / Pro / Max; CommandCode Go is not supported**. Existing auth files and configuration remain valid.
+- Upgrade: replace the platform-specific plugin library, restart CPA and refresh Management Center. Publishing a release does not update an already running plugin.
+
+**中文**
+
+- 插件迁移到 CLIProxyAPI v8，要求宿主 **CLIProxyAPI v8.0.50 及以上**。
+- 注册原生 `QuotaProvider`（标识 `commandcode`）：CommandCode 额度现在显示在管理后台的**认证文件卡片**与**配额管理**页，支持按账户**刷新额度**和**全部获取**。插件自建的 **CommandCode账户与额度** 页保留用于新增账户。
+- 管理后台页面改用 CommandCode 官方文字标志，按浅色/深色主题自动切换，主色对齐品牌 Burple `#8C4EDD`。
+- 仍然只支持 **CommandCode GOAT / Pro / Max，不支持 Go 套餐**；已有认证文件和配置继续可用。
+- 升级时替换对应平台的插件库、重启 CPA 并刷新管理后台；发布不会自动更新正在运行的插件。
+
 ## v0.1.4 — Management Center remembered-auth compatibility (2026-11-04)
 
 - Fix the quota and OAuth pages showing “Enable Remember password” when Management Center already had Remember password enabled. The plugin now decodes the current `enc::v2::` `cli-proxy-auth` storage format as well as legacy `enc::v1::` values.

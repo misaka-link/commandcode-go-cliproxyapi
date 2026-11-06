@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
 	"commandcode-go-cliproxyapi/internal/catalog"
 	"commandcode-go-cliproxyapi/internal/config"
@@ -471,11 +471,11 @@ func TestRegisterSuccessPublishesModels(t *testing.T) {
 	if reg.SchemaVersion != pluginabi.SchemaVersion {
 		t.Fatalf("schema_version = %d, want %d", reg.SchemaVersion, pluginabi.SchemaVersion)
 	}
-	if reg.Metadata.Name != "commandcode-go-cliproxyapi" || reg.Metadata.Version != "0.1.4" ||
+	if reg.Metadata.Name != "commandcode-go-cliproxyapi" || reg.Metadata.Version != "0.2.0" ||
 		len(reg.Metadata.ConfigFields) != 0 {
 		t.Fatalf("metadata wrong: %+v", reg.Metadata)
 	}
-	if !reg.Capabilities.ModelProvider || !reg.Capabilities.AuthProvider {
+	if !reg.Capabilities.ModelProvider || !reg.Capabilities.AuthProvider || !reg.Capabilities.QuotaProvider {
 		t.Fatalf("capabilities wrong: %+v", reg.Capabilities)
 	}
 

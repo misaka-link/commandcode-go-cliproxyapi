@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
 	"commandcode-go-cliproxyapi/resources"
 )
@@ -41,7 +41,10 @@ type quotaWindow struct {
 
 // quotaUsage is one credential's account snapshot.
 type quotaUsage struct {
-	Plan             string  `json:"plan,omitempty"`
+	Plan string `json:"plan,omitempty"`
+	// PlanID is the raw vendor plan id (e.g. "individual-goat"), carried for
+	// the native QuotaProvider subscription.tierId. Plan holds the display name.
+	PlanID           string  `json:"plan_id,omitempty"`
 	PlanCredits      float64 `json:"plan_credits,omitempty"`
 	CreditsLeft      float64 `json:"credits_left"`
 	PurchasedCredits float64 `json:"purchased_credits,omitempty"`
@@ -294,6 +297,13 @@ func AccountAPIBase(baseURL string) (string, error) {
 	return u.Scheme + "://" + u.Host + path, nil
 }
 
+// httpDoer is the subset of the host HTTP transport used by quota fetches.
+// Both *HostBridge (the plugin's global host callback) and
+// pluginapi.HostHTTPClient (in-process host transport) satisfy it.
+type httpDoer interface {
+	Do(context.Context, pluginapi.HTTPRequest) (pluginapi.HTTPResponse, error)
+}
+
 // fetchQuota reads one credential's account snapshot: remaining plan credits
 // and the rolling windows come from /alpha/billing/credits, the plan identity
 // from /alpha/billing/subscriptions, and the account identity from
@@ -302,8 +312,8 @@ func AccountAPIBase(baseURL string) (string, error) {
 // an org) and email is the bare mailbox, the only form written into an auth
 // file. Both are best-effort — a key still shows its windows when only the
 // credit call succeeds.
-func fetchQuota(ctx context.Context, bridge *HostBridge, baseURL string, timeout time.Duration, key string) (quotaUsage, string, string, error) {
-	if bridge == nil {
+func fetchQuota(ctx context.Context, doer httpDoer, baseURL string, timeout time.Duration, key string) (quotaUsage, string, string, error) {
+	if doer == nil {
 		return quotaUsage{}, "", "", fmt.Errorf("account bridge unavailable")
 	}
 	base, err := AccountAPIBase(baseURL)
@@ -316,7 +326,7 @@ func fetchQuota(ctx context.Context, bridge *HostBridge, baseURL string, timeout
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	get := func(path string) ([]byte, error) {
-		resp, errDo := bridge.Do(ctx, pluginapi.HTTPRequest{
+		resp, errDo := doer.Do(ctx, pluginapi.HTTPRequest{
 			Method: http.MethodGet,
 			URL:    base + path,
 			Headers: http.Header{
@@ -358,6 +368,7 @@ func fetchQuota(ctx context.Context, bridge *HostBridge, baseURL string, timeout
 		var sub accountSubscription
 		if json.Unmarshal(raw, &sub) == nil && sub.Success {
 			periodEnd = sub.Data.CurrentPeriodEnd
+			usage.PlanID = strings.TrimSpace(sub.Data.PlanID)
 			if name, allowance := planFor(sub.Data.PlanID); name != "" {
 				usage.Plan = name
 				usage.PlanCredits = allowance

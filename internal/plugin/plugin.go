@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
 	"commandcode-go-cliproxyapi/internal/catalog"
 	"commandcode-go-cliproxyapi/internal/config"
@@ -25,7 +25,7 @@ const ProviderID = "commandcode"
 // pluginName / pluginVersion are reported in registration metadata.
 const (
 	pluginName    = "commandcode-go-cliproxyapi"
-	pluginVersion = "0.1.4"
+	pluginVersion = "0.2.0"
 )
 
 // githubRepoURL satisfies the host's validPlugin gate (host.go
@@ -141,6 +141,39 @@ func (m *Manager) HandleCall(method string, request []byte) (resp []byte, err er
 		return m.registerManagement(request)
 	case pluginabi.MethodManagementHandle:
 		return m.handleManagement(request)
+	case pluginabi.MethodQuotaIdentifier:
+		return okEnvelope(map[string]string{"identifier": ProviderID}), nil
+	case pluginabi.MethodQuotaDescribe:
+		var req pluginapi.QuotaDescribeRequest
+		_ = json.Unmarshal(request, &req)
+		resp, err := (quotaProvider{m: m}).DescribeQuota(context.Background(), req)
+		if err != nil {
+			return ErrEnvelope("quota_failure", err.Error()), nil
+		}
+		return okEnvelope(resp), nil
+	case pluginabi.MethodQuotaFetch:
+		var req struct {
+			pluginapi.QuotaFetchRequest
+			HostCallbackID string `json:"host_callback_id,omitempty"`
+		}
+		if json.Unmarshal(request, &req) != nil {
+			return ErrEnvelope("invalid_request", "malformed quota fetch request body"), nil
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), quotaMaxTimeout)
+		defer cancel()
+		resp, err := m.handleQuotaFetch(ctx, req.QuotaFetchRequest, req.HostCallbackID)
+		if err != nil {
+			return ErrEnvelope("quota_failure", err.Error()), nil
+		}
+		return okEnvelope(resp), nil
+	case pluginabi.MethodQuotaReset:
+		var req pluginapi.QuotaResetRequest
+		_ = json.Unmarshal(request, &req)
+		resp, err := (quotaProvider{m: m}).ResetQuota(context.Background(), req)
+		if err != nil {
+			return ErrEnvelope("quota_failure", err.Error()), nil
+		}
+		return okEnvelope(resp), nil
 	case pluginabi.MethodExecutorIdentifier:
 		return okEnvelope(map[string]string{"identifier": ProviderID}), nil
 	case pluginabi.MethodExecutorCountTokens:
@@ -173,6 +206,7 @@ type capabilities struct {
 	ExecutorInputFormats  []string                     `json:"executor_input_formats,omitempty"`
 	ExecutorOutputFormats []string                     `json:"executor_output_formats,omitempty"`
 	ManagementAPI         bool                         `json:"management_api"`
+	QuotaProvider         bool                         `json:"quota_provider"`
 }
 
 type registrationResult struct {
@@ -200,6 +234,7 @@ func registrationEnvelope() []byte {
 			ExecutorInputFormats:  formats,
 			ExecutorOutputFormats: formats,
 			ManagementAPI:         true,
+			QuotaProvider:         true,
 		},
 	})
 }

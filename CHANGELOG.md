@@ -2,6 +2,22 @@
 
 本文件记录面向使用者的更新摘要。详细版本历史见 [RELEASE_NOTES.md](RELEASE_NOTES.md)，操作步骤见 [中文说明](README.zh-CN.md) / [English README](README.md)。
 
+## v0.2.0 — 2026-11-06
+
+- 迁移到 CLIProxyAPI v8（依赖 `github.com/router-for-me/CLIProxyAPI/v8`），最低要求宿主 **CLIProxyAPI v8.0.50+**。
+- 接入 CPA 原生配额能力：插件注册 `QuotaProvider`（标识 `commandcode`），每个 CommandCode 认证文件的额度直接显示在管理后台的**认证文件卡片**与**配额管理**页，支持按账户刷新额度和「全部获取」。
+- 插件自建的 **CommandCode账户与额度** 页面保留，用于新增账户（粘贴 API key）和按账户查看概览；额度不再只依赖该页面。
+- 管理后台 WebUI 改用 CommandCode 官方 Logo（文字标志），按浅色/深色主题自动切换，主色对齐品牌 Burple `#8C4EDD`。
+- 仍支持 **CommandCode GOAT / Pro / Max，不支持 Go**；已有认证文件和配置继续可用。更新插件后需重启 CPA。
+
+### v0.2.0 English highlights — 2026-11-06
+
+- Migrate to CLIProxyAPI v8 (`github.com/router-for-me/CLIProxyAPI/v8`); the plugin now requires host **CLIProxyAPI v8.0.50+**.
+- Adopt CPA's native quota support: register a `QuotaProvider` (identifier `commandcode`) so each CommandCode auth file's quota appears on the Management Center **auth-file cards** and the **Quota Management** page, with per-account refresh and **Fetch all**.
+- The plugin's own **CommandCode accounts and quota** page is retained for adding accounts (paste an API key) and for a per-account overview; quota no longer depends on that page alone.
+- Use the official CommandCode wordmark in the Management Center pages, switching automatically between light and dark themes, with the primary color aligned to brand Burple `#8C4EDD`.
+- Still supports **CommandCode GOAT / Pro / Max, not Go**; existing auth files and configuration remain valid. Restart CPA after updating the plugin.
+
 ## v0.1.4 — 2026-11-04
 
 - 修复管理后台启用“记住密码”后，CommandCode 页面仍提示“Enable Remember password”的兼容性问题：管理后台新的 `enc::v2::` 认证存储格式现在可以被插件正确读取。

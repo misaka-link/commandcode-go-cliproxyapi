@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
 	"commandcode-go-cliproxyapi/internal/config"
 	"commandcode-go-cliproxyapi/resources"
@@ -565,8 +565,8 @@ func TestQuotaPageUsesNativeQuotaStylesAndThemeBridge(t *testing.T) {
 		"--text-secondary: #6d6760",
 		"--text-tertiary: #a29c95",
 		"--border-color: #e3e1db",
-		"--primary-color: #8b8680",
-		"--primary-hover: #7f7a74",
+		"--primary-color: #8c4edd",
+		"--primary-hover: #7a3fcc",
 		"border-radius: 8px; padding: 8px 10px",
 		`MutationObserver`,
 		`catch (_) {}`,

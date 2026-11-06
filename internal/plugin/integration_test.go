@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
 	"commandcode-go-cliproxyapi/internal/config"
 )
@@ -470,7 +470,7 @@ func TestRegisterAndDiscover(t *testing.T) {
 	if reg.SchemaVersion != pluginabi.SchemaVersion {
 		t.Fatalf("schema_version = %d, want %d", reg.SchemaVersion, pluginabi.SchemaVersion)
 	}
-	if !reg.Capabilities.ModelProvider || !reg.Capabilities.AuthProvider || !reg.Capabilities.Executor {
+	if !reg.Capabilities.ModelProvider || !reg.Capabilities.AuthProvider || !reg.Capabilities.Executor || !reg.Capabilities.QuotaProvider {
 		t.Fatalf("capabilities = %+v", reg.Capabilities)
 	}
 

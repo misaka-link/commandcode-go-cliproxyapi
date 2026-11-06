@@ -69,7 +69,7 @@ CommandCode GOAT / Pro / Max 通过它的 OpenAI 兼容入口访问：
 
 ## 环境要求
 
-- **CLIProxyAPI**：`v7.2.138+`
+- **CLIProxyAPI**：`v8.0.50+`
 - **Go**：1.26+（`-buildmode=c-shared` 需要启用 CGO）
 
 ## v0.1.4 升级与发布说明
@@ -184,8 +184,9 @@ API key 不写在这份 YAML 里。CLIProxyAPI 认证文件是唯一来源。
 
 ### 配额页面
 
-额度显示在插件自己的页面。当前尚未接入 CPA 认证文件卡片使用的标准额度查询能力（`QuotaProvider`），通过 OAuth 新增也不会自动让该卡片显示额度。
-管理后台 → **CommandCode** 里的 **CommandCode账户与额度** 页面读取与 `base-url` 同源的账号接口：
+额度已接入 CPA 原生配额能力。插件注册了原生 `QuotaProvider`（标识 `commandcode`），每个 CommandCode 认证文件的额度会直接显示在管理后台的**认证文件卡片**和**配额管理**页，支持按账户**刷新额度**和**全部获取**。该能力要求 **CLIProxyAPI v8.0.50 及以上**。
+
+插件自建的 **CommandCode账户与额度** 页面（管理后台 → **CommandCode**）保留用于新增账户（粘贴 API key）和按账户查看概览，读取与 `base-url` 同源的账号接口：
 
 | 接口 | 用途 |
 |---|---|
@@ -193,7 +194,7 @@ API key 不写在这份 YAML 里。CLIProxyAPI 认证文件是唯一来源。
 | `GET {authority}/alpha/billing/subscriptions` | 套餐 id/状态 |
 | `GET {authority}/alpha/whoami?limits=1` | 卡片标题用的账号邮箱 |
 
-`{authority}` 由 `base-url` 去掉 provider 路径（`/provider/v1`）得到。卡片对应宿主认证文件，而不是 `api-keys` 条目。加载列表时，缺少邮箱的账户可能会自动查询一次以补全信息；其余由用户按卡片手动刷新。页面没有定时额度轮询，配额数值也不参与路由决策。
+`{authority}` 由 `base-url` 去掉 provider 路径（`/provider/v1`）得到。卡片对应宿主认证文件，而不是 `api-keys` 条目。加载列表时，缺少邮箱的账户可能会自动查询一次以补全信息；其余由用户按卡片手动刷新。插件页没有定时额度轮询，配额数值也不参与路由决策。
 
 **邮箱同步的已知限制**：查到邮箱后，插件会尽量写回原认证文件，让插件页和宿主认证文件页都能显示邮箱。写回前会检查文件是否已删除或更改，但最后一次检查与替换文件之间仍存在竞争窗口；同时删除、禁用或修改备注，可能被旧内容覆盖，删除的文件也可能被重新创建。当前选择保留两处显示邮箱的行为，未消除这一风险。建议等额度刷新结束后再修改认证文件，操作后刷新列表确认结果。
 

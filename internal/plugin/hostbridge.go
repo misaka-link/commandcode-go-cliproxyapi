@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 )
 
 // RawCaller performs one host callback round-trip: method name plus JSON
@@ -48,6 +48,9 @@ type hostHTTPReq struct {
 	URL     string      `json:"url"`
 	Headers http.Header `json:"headers"`
 	Body    []byte      `json:"body"`
+	// HostCallbackID routes host.http.do through the credential-bound
+	// transport opened for the calling host callback (e.g. quota.fetch).
+	HostCallbackID string `json:"host_callback_id,omitempty"`
 }
 
 type hostAuthListResponse struct {
@@ -301,8 +304,21 @@ func (b *HostBridge) invoke(ctx context.Context, method string, payload any, wha
 // "host.http.do"; transport-level failures surface as errors whose text is
 // safe for logs (no keys, no response bodies).
 func (b *HostBridge) Do(ctx context.Context, req pluginapi.HTTPRequest) (pluginapi.HTTPResponse, error) {
+	return b.do(ctx, req, "")
+}
+
+// DoWithCallback is Do with an explicit host_callback_id, so the host routes
+// the request through the credential-bound transport opened for that callback.
+// QuotaProvider.FetchQuota uses it over the C ABI, where the in-process
+// HTTPClient field is not serialized.
+func (b *HostBridge) DoWithCallback(ctx context.Context, req pluginapi.HTTPRequest, callbackID string) (pluginapi.HTTPResponse, error) {
+	return b.do(ctx, req, callbackID)
+}
+
+func (b *HostBridge) do(ctx context.Context, req pluginapi.HTTPRequest, callbackID string) (pluginapi.HTTPResponse, error) {
 	env, err := b.invoke(ctx, pluginabi.MethodHostHTTPDo, hostHTTPReq{
 		Method: req.Method, URL: req.URL, Headers: req.Headers, Body: req.Body,
+		HostCallbackID: strings.TrimSpace(callbackID),
 	}, "host http do")
 	if err != nil {
 		return pluginapi.HTTPResponse{}, err
