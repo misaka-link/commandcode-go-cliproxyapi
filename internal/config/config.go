@@ -58,8 +58,12 @@ type Config struct {
 	// ModelWhitelist filters published models. Empty means "allow all"
 	// (backward compatible). Each entry is matched case-insensitively against
 	// the upstream and public model ids: plain text is a substring keyword,
-	// while entries containing * or ? are wildcard patterns.
+	// entries containing * or ? are wildcard patterns, and an entry prefixed
+	// with = is an exact match.
 	ModelWhitelist []string
+	// ModelBlacklist removes published models after the whitelist. It uses the
+	// same entry syntax as ModelWhitelist and takes precedence over it.
+	ModelBlacklist []string
 }
 
 // rawConfig mirrors the YAML shape; pointer fields distinguish "unset"
@@ -79,6 +83,7 @@ type rawConfig struct {
 	RequestTimeout   *string                  `yaml:"request-timeout"`
 	MaxResponseBytes *int64                   `yaml:"max-response-bytes"`
 	ModelWhitelist   []string                 `yaml:"model-whitelist"`
+	ModelBlacklist   []string                 `yaml:"model-blacklist"`
 }
 
 type rawPrefix struct {
@@ -147,6 +152,7 @@ func Load(yamlBytes []byte) (Config, error) {
 		RequestTimeout:   requestTimeout,
 		MaxResponseBytes: orDefault(raw.MaxResponseBytes, DefaultMaxResponseBytes),
 		ModelWhitelist:   normalizeWhitelist(raw.ModelWhitelist),
+		ModelBlacklist:   normalizeWhitelist(raw.ModelBlacklist),
 	}
 	if raw.CatalogURL != nil {
 		// Mirror the derived-default trim so an explicit trailing-slash
@@ -214,11 +220,44 @@ func (c Config) ModelAllowed(upstreamID, publicID string) bool {
 	if len(c.ModelWhitelist) == 0 {
 		return true
 	}
+	return matchesAnyEntry(c.ModelWhitelist, upstreamID, publicID)
+}
+
+// ModelBlocked reports whether a model matches the configured blacklist.
+func (c Config) ModelBlocked(upstreamID, publicID string) bool {
+	return len(c.ModelBlacklist) > 0 && matchesAnyEntry(c.ModelBlacklist, upstreamID, publicID)
+}
+
+// ModelSelected applies the blacklist (deny) before the whitelist (allow).
+// It returns whether the model is published and, when excluded, the reason
+// recorded in catalog diagnostics.
+func (c Config) ModelSelected(upstreamID, publicID string) (bool, string) {
+	if c.ModelBlocked(upstreamID, publicID) {
+		return false, "excluded by model-blacklist"
+	}
+	if !c.ModelAllowed(upstreamID, publicID) {
+		return false, "excluded by model-whitelist"
+	}
+	return true, ""
+}
+
+// matchesAnyEntry matches an id against entries: "=x" is an exact match,
+// entries with * or ? are wildcards, and everything else is a
+// case-insensitive substring keyword. Both the upstream and public ids are
+// tested.
+func matchesAnyEntry(entries []string, upstreamID, publicID string) bool {
 	upstream := strings.ToLower(upstreamID)
 	public := strings.ToLower(publicID)
-	for _, raw := range c.ModelWhitelist {
+	for _, raw := range entries {
 		pattern := strings.ToLower(strings.TrimSpace(raw))
 		if pattern == "" {
+			continue
+		}
+		if strings.HasPrefix(pattern, "=") {
+			exact := strings.TrimSpace(strings.TrimPrefix(pattern, "="))
+			if exact != "" && (upstream == exact || public == exact) {
+				return true
+			}
 			continue
 		}
 		if strings.ContainsAny(pattern, "*?") {

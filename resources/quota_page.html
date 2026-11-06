@@ -133,6 +133,15 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
       <span id="whitelist-status" class="quota-status" role="status"></span>
     </div>
   </section>
+  <section class="quota-whitelist">
+    <h2 class="quota-whitelist-title">模型黑名单</h2>
+    <p class="quota-description">命中黑名单的模型会被排除（优先级高于白名单；每行一个，也支持逗号分隔；支持 * 通配；= 开头表示精确匹配，如 =zai-org/glm-5）。</p>
+    <textarea id="model-blacklist" class="quota-input quota-whitelist-input" rows="4" spellcheck="false" autocapitalize="off" placeholder="kimi-k2&#10;deepseek-v4-flash&#10;=zai-org/glm-5&#10;glm-5.1&#10;glm-5.2"></textarea>
+    <div class="quota-whitelist-actions">
+      <button id="save-blacklist" class="quota-refresh" type="button">保存黑名单</button>
+      <span id="blacklist-status" class="quota-status" role="status"></span>
+    </div>
+  </section>
   <form id="save-form" class="quota-form" autocomplete="off">
     <label class="quota-field-label" for="api-key">API key</label>
     <input id="api-key" class="quota-input" type="password" autocomplete="off" spellcheck="false" autocapitalize="off">
@@ -180,6 +189,9 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
   const whitelistInput = document.getElementById("model-whitelist");
   const saveWhitelistButton = document.getElementById("save-whitelist");
   const whitelistStatus = document.getElementById("whitelist-status");
+  const blacklistInput = document.getElementById("model-blacklist");
+  const saveBlacklistButton = document.getElementById("save-blacklist");
+  const blacklistStatus = document.getElementById("blacklist-status");
   const marker = "/v0/resource/plugins/commandcode-go-cliproxyapi/quota";
   const prefix = location.pathname.endsWith(marker) ? location.pathname.slice(0, -marker.length) : "";
   const quotaEndpoint = prefix + "/v0/management/plugins/commandcode-go-cliproxyapi/quota-usage";
@@ -315,6 +327,30 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
       setWhitelistStatus("已保存，CPA 正在重载插件，稍后生效。", false);
     }).catch(err => setWhitelistStatus("保存失败：" + (err.message || "请求失败"), true)).then(() => {
       saveWhitelistButton.disabled = false;
+    });
+  }
+  function setBlacklistStatus(message, isError) {
+    blacklistStatus.className = message ? (isError ? "quota-status quota-error" : "quota-status quota-success") : "quota-status";
+    blacklistStatus.textContent = message || "";
+  }
+  function blacklistEntries() {
+    return blacklistInput.value.split(/[\n,]+/).map(entry => entry.trim()).filter(Boolean);
+  }
+  function loadBlacklist() {
+    return apiRequest("GET", configEndpoint).then(config => {
+      const list = Array.isArray(config && config["model-blacklist"]) ? config["model-blacklist"] : [];
+      blacklistInput.value = list.join("\n");
+      setBlacklistStatus(list.length ? "当前 " + list.length + " 条规则。" : "当前未设置。", false);
+    }).catch(err => setBlacklistStatus("读取黑名单失败：" + (err.message || "请求失败"), true));
+  }
+  function saveBlacklist() {
+    if (saveBlacklistButton.disabled) return;
+    saveBlacklistButton.disabled = true;
+    setBlacklistStatus("正在保存…", false);
+    apiRequest("PATCH", configEndpoint, {"model-blacklist": blacklistEntries()}).then(() => {
+      setBlacklistStatus("已保存，CPA 正在重载插件，稍后生效。", false);
+    }).catch(err => setBlacklistStatus("保存失败：" + (err.message || "请求失败"), true)).then(() => {
+      saveBlacklistButton.disabled = false;
     });
   }
   function setSaveStatus(message, isError) {
@@ -471,6 +507,8 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
     reloadButton.disabled = true;
     saveWhitelistButton.disabled = true;
     whitelistInput.disabled = true;
+    saveBlacklistButton.disabled = true;
+    blacklistInput.disabled = true;
     app.textContent = "";
     const p = document.createElement("p"); p.className = "quota-error"; p.setAttribute("role", "status"); p.textContent = "Enable Remember password in Management Center to use this page."; app.appendChild(p);
     return;
@@ -478,7 +516,9 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
   saveForm.addEventListener("submit", onSave);
   reloadButton.addEventListener("click", () => { if (!listLoading) loadList(); });
   saveWhitelistButton.addEventListener("click", saveWhitelist);
+  saveBlacklistButton.addEventListener("click", saveBlacklist);
   loadWhitelist();
+  loadBlacklist();
   loadList();
 })();
 </script>

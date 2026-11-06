@@ -144,6 +144,9 @@ plugins:
           # Plain entries are case-insensitive substring keywords; * and ? are wildcards.
           # Empty or absent publishes every catalog model (default).
           model-whitelist: []
+          # Optional model denylist, applied after the allowlist (deny wins).
+          # Same syntax; prefix an entry with = for an exact id match.
+          model-blacklist: []
 ```
 
 ### Configuration Options
@@ -162,7 +165,8 @@ plugins:
 | `request-timeout` | `duration` | `5m` | Upstream HTTP timeout (also bounds account/quota calls to 30s). |
 | `max-response-bytes` | `int64` | `67108864` | Maximum non-streaming response body size. |
 | `allow-http` | `bool` | `false` | Permit `http://` upstreams for local testing. |
-| `model-whitelist` | `list<string>` | `[]` | Only models whose upstream or public id matches an entry are published. Plain entries are case-insensitive substring keywords; entries containing `*` or `?` are wildcards (`*` also crosses `/`). Empty publishes all models. |
+| `model-whitelist` | `list<string>` | `[]` | Only models whose upstream or public id matches an entry are published. Plain entries are case-insensitive substring keywords; entries containing `*` or `?` are wildcards (`*` also crosses `/`); an entry prefixed with `=` is an exact id match. Empty publishes all models. |
+| `model-blacklist` | `list<string>` | `[]` | Models matching an entry are excluded after the allowlist (deny wins). Same syntax as `model-whitelist`. |
 
 ### Accounts
 

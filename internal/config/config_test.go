@@ -431,3 +431,47 @@ func TestLoadModelWhitelistNormalized(t *testing.T) {
 		t.Fatalf("whitelist = %#v", c.ModelWhitelist)
 	}
 }
+
+func TestModelBlacklistAndExactMatch(t *testing.T) {
+	c := Config{
+		ModelWhitelist: []string{"kimi", "deepseek", "glm"},
+		ModelBlacklist: []string{"kimi-k2", "deepseek-v4-flash", "=zai-org/glm-5", "glm-5.1", "glm-5.2"},
+	}
+	cases := []struct {
+		upstream, public string
+		want             bool
+		reason           string
+	}{
+		{"moonshotai/Kimi-K2.5", "commandcode/moonshotai/Kimi-K2.5", false, "excluded by model-blacklist"},
+		{"moonshotai/Kimi-K3", "commandcode/moonshotai/Kimi-K3", true, ""},
+		{"deepseek/deepseek-v4-flash", "commandcode/deepseek/deepseek-v4-flash", false, "excluded by model-blacklist"},
+		{"deepseek/deepseek-v4.1-flash", "commandcode/deepseek/deepseek-v4.1-flash", true, ""},
+		{"zai-org/GLM-5", "commandcode/zai-org/GLM-5", false, "excluded by model-blacklist"},
+		{"zai-org/GLM-5.3", "commandcode/zai-org/GLM-5.3", true, ""},
+		{"zai-org/GLM-5.2-Fast", "commandcode/zai-org/GLM-5.2-Fast", false, "excluded by model-blacklist"},
+		{"z-ai/glm-5.3-flash", "commandcode/z-ai/glm-5.3-flash", true, ""},
+		{"Qwen/Qwen3.8-Max", "commandcode/Qwen/Qwen3.8-Max", false, "excluded by model-whitelist"},
+	}
+	for _, tc := range cases {
+		got, reason := c.ModelSelected(tc.upstream, tc.public)
+		if got != tc.want || reason != tc.reason {
+			t.Errorf("ModelSelected(%q) = (%v,%q), want (%v,%q)", tc.upstream, got, reason, tc.want, tc.reason)
+		}
+	}
+	if !c.ModelBlocked("zai-org/GLM-5", "") {
+		t.Error("exact blacklist entry should block the exact id")
+	}
+	if c.ModelBlocked("zai-org/GLM-5.3", "") {
+		t.Error("exact blacklist entry must not block a longer version")
+	}
+}
+
+func TestLoadModelBlacklistNormalized(t *testing.T) {
+	c, err := Load([]byte("model-blacklist:\n  - ' kimi-k2 '\n  - kimi-k2\n  - ''\n  - '=zai-org/glm-5'\n"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(c.ModelBlacklist) != 2 || c.ModelBlacklist[0] != "kimi-k2" || c.ModelBlacklist[1] != "=zai-org/glm-5" {
+		t.Fatalf("blacklist = %#v", c.ModelBlacklist)
+	}
+}

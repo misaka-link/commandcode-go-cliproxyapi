@@ -2,6 +2,18 @@
 
 本文件记录面向使用者的更新摘要。详细版本历史见 [RELEASE_NOTES.md](RELEASE_NOTES.md)，操作步骤见 [中文说明](README.zh-CN.md) / [English README](README.md)。
 
+## v0.2.2 — 2026-11-07
+
+- 新增模型黑名单 `model-blacklist`：在白名单之后生效（**黑名单优先**），命中的模型不会注册/发布。
+- 两个名单都支持：不区分大小写子串关键词、`*`/`?` 通配符，以及 `=` 开头的**精确匹配**（用于只拉黑某个老版本、不误伤新版本）。
+- 插件页面新增「模型黑名单」区块，保存写入 `plugins.configs.commandcode-go-cliproxyapi.model-blacklist`，host 自动重载插件。
+
+### v0.2.2 English highlights — 2026-11-07
+
+- Add `model-blacklist`: applied after the allowlist (**deny wins**); matching models are not registered/published.
+- Both lists accept case-insensitive substring keywords, `*`/`?` wildcards, and `=`-prefixed **exact** id matches (useful to block one old version without hitting a newer one).
+- The plugin page gains a **Model blacklist** section that saves to the CPA plugin config and triggers a reload.
+
 ## v0.2.1 — 2026-11-07
 
 - 新增模型白名单 `model-whitelist`：只有命中白名单的模型才会注册/发布，未命中的模型不会出现在 `/v1/models`，也不会参与路由。

@@ -1173,3 +1173,41 @@ func TestModelWhitelistFiltersSnapshot(t *testing.T) {
 		t.Fatalf("excluded diagnostics = %d, want 2 (%v)", excluded, m.Unsupported())
 	}
 }
+
+func TestModelBlacklistFiltersSnapshot(t *testing.T) {
+	body := `{"data":[
+		{"id":"moonshotai/Kimi-K2.5"},
+		{"id":"moonshotai/Kimi-K3"},
+		{"id":"deepseek/deepseek-v4-flash"},
+		{"id":"deepseek/deepseek-v4.1-flash"},
+		{"id":"zai-org/GLM-5"},
+		{"id":"zai-org/GLM-5.3"},
+		{"id":"Qwen/Qwen3.8-Max"}
+	]}`
+	cfg := testCfg()
+	cfg.ModelWhitelist = []string{"kimi", "deepseek", "glm"}
+	cfg.ModelBlacklist = []string{"kimi-k2", "deepseek-v4-flash", "=zai-org/glm-5"}
+	fc := &fakeClient{resp: pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(body)}}
+	m := newManager(cfg, fc)
+	mustRefresh(t, m)
+	got := map[string]bool{}
+	for _, mo := range m.Models() {
+		got[mo.UpstreamID] = true
+	}
+	want := map[string]bool{"moonshotai/Kimi-K3": true, "deepseek/deepseek-v4.1-flash": true, "zai-org/GLM-5.3": true}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("routable models = %v, want %v", got, want)
+	}
+	black, white := 0, 0
+	for _, u := range m.Unsupported() {
+		switch u.Reason {
+		case "excluded by model-blacklist":
+			black++
+		case "excluded by model-whitelist":
+			white++
+		}
+	}
+	if black != 3 || white != 1 {
+		t.Fatalf("diagnostics black=%d white=%d (%v)", black, white, m.Unsupported())
+	}
+}
