@@ -1142,3 +1142,34 @@ func TestRefreshDataKeyAbsentVsEmpty(t *testing.T) {
 		t.Fatalf("intended clear must stay silent, got %v", got)
 	}
 }
+
+func TestModelWhitelistFiltersSnapshot(t *testing.T) {
+	body := `{"data":[
+		{"id":"gpt-5.6-luna"},
+		{"id":"glm-5.2"},
+		{"id":"deepseek/deepseek-v4.1-flash"},
+		{"id":"claude-opus-5"}
+	]}`
+	cfg := testCfg()
+	cfg.ModelWhitelist = []string{"claude", "glm-5*"}
+	fc := &fakeClient{resp: pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(body)}}
+	m := newManager(cfg, fc)
+	mustRefresh(t, m)
+	got := map[string]bool{}
+	for _, mo := range m.Models() {
+		got[mo.UpstreamID] = true
+	}
+	want := map[string]bool{"glm-5.2": true, "claude-opus-5": true}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("routable models = %v, want %v", got, want)
+	}
+	excluded := 0
+	for _, u := range m.Unsupported() {
+		if u.Reason == "excluded by model-whitelist" {
+			excluded++
+		}
+	}
+	if excluded != 2 {
+		t.Fatalf("excluded diagnostics = %d, want 2 (%v)", excluded, m.Unsupported())
+	}
+}

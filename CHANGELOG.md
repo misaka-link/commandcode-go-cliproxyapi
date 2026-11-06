@@ -2,6 +2,20 @@
 
 本文件记录面向使用者的更新摘要。详细版本历史见 [RELEASE_NOTES.md](RELEASE_NOTES.md)，操作步骤见 [中文说明](README.zh-CN.md) / [English README](README.md)。
 
+## v0.2.1 — 2026-11-07
+
+- 新增模型白名单 `model-whitelist`：只有命中白名单的模型才会注册/发布，未命中的模型不会出现在 `/v1/models`，也不会参与路由。
+- 匹配规则：条目按**不区分大小写的子串关键词**匹配上游 id 或公开 id；条目含 `*` 或 `?` 时按通配符匹配（`*` 可跨 `/`）；留空表示发布全部模型（向后兼容）。
+- 插件页面新增「**模型白名单**」区块：可直接编辑并保存，写入 CPA 插件配置（`plugins.configs.commandcode-go-cliproxyapi.model-whitelist`），保存后自动重载插件生效。
+- 已在 CLIProxyAPI **v8.0.58** 上验证。
+
+### v0.2.1 English highlights — 2026-11-07
+
+- Add `model-whitelist`: only matching models are registered/published; non-matching models are absent from `/v1/models` and cannot be routed.
+- Matching is case-insensitive: plain entries are substring keywords against the upstream or public id; entries with `*` or `?` are wildcards (`*` crosses `/`); an empty list publishes every model (backward compatible).
+- The plugin page gains a **Model whitelist** section that saves to the CPA plugin config (`plugins.configs.commandcode-go-cliproxyapi.model-whitelist`) and triggers a plugin reload.
+- Verified on CLIProxyAPI **v8.0.58**.
+
 ## v0.2.0 — 2026-11-06
 
 - 迁移到 CLIProxyAPI v8（依赖 `github.com/router-for-me/CLIProxyAPI/v8`），最低要求宿主 **CLIProxyAPI v8.0.50+**。

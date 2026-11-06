@@ -55,6 +55,11 @@ type Config struct {
 	AllowHTTP        bool
 	RequestTimeout   time.Duration
 	MaxResponseBytes int64
+	// ModelWhitelist filters published models. Empty means "allow all"
+	// (backward compatible). Each entry is matched case-insensitively against
+	// the upstream and public model ids: plain text is a substring keyword,
+	// while entries containing * or ? are wildcard patterns.
+	ModelWhitelist []string
 }
 
 // rawConfig mirrors the YAML shape; pointer fields distinguish "unset"
@@ -73,6 +78,7 @@ type rawConfig struct {
 	AllowHTTP        bool                     `yaml:"allow-http"`
 	RequestTimeout   *string                  `yaml:"request-timeout"`
 	MaxResponseBytes *int64                   `yaml:"max-response-bytes"`
+	ModelWhitelist   []string                 `yaml:"model-whitelist"`
 }
 
 type rawPrefix struct {
@@ -140,6 +146,7 @@ func Load(yamlBytes []byte) (Config, error) {
 		AllowHTTP:        raw.AllowHTTP,
 		RequestTimeout:   requestTimeout,
 		MaxResponseBytes: orDefault(raw.MaxResponseBytes, DefaultMaxResponseBytes),
+		ModelWhitelist:   normalizeWhitelist(raw.ModelWhitelist),
 	}
 	if raw.CatalogURL != nil {
 		// Mirror the derived-default trim so an explicit trailing-slash
@@ -160,6 +167,99 @@ func PublicID(c Config, upstreamID string) string {
 		return c.ModelPrefix.Value + "/" + upstreamID
 	}
 	return upstreamID
+}
+
+const (
+	maxWhitelistEntries = 500
+	maxWhitelistLength  = 256
+)
+
+// normalizeWhitelist trims entries, drops blanks and duplicates, and bounds the
+// list so a malformed config cannot blow up the catalog build.
+func normalizeWhitelist(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(in))
+	seen := make(map[string]bool, len(in))
+	for _, raw := range in {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			continue
+		}
+		if len(entry) > maxWhitelistLength {
+			entry = entry[:maxWhitelistLength]
+		}
+		if seen[entry] {
+			continue
+		}
+		seen[entry] = true
+		out = append(out, entry)
+		if len(out) >= maxWhitelistEntries {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// ModelAllowed reports whether a model passes the configured whitelist.
+// An empty whitelist allows every model (backward compatible). Entries are
+// matched case-insensitively against both the upstream id and the public id;
+// plain entries are substring keywords, and entries containing * or ? are
+// wildcard patterns where * matches any run of characters (including "/").
+func (c Config) ModelAllowed(upstreamID, publicID string) bool {
+	if len(c.ModelWhitelist) == 0 {
+		return true
+	}
+	upstream := strings.ToLower(upstreamID)
+	public := strings.ToLower(publicID)
+	for _, raw := range c.ModelWhitelist {
+		pattern := strings.ToLower(strings.TrimSpace(raw))
+		if pattern == "" {
+			continue
+		}
+		if strings.ContainsAny(pattern, "*?") {
+			if wildcardMatch(pattern, upstream) || wildcardMatch(pattern, public) {
+				return true
+			}
+			continue
+		}
+		if strings.Contains(upstream, pattern) || strings.Contains(public, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// wildcardMatch matches s against pattern supporting * (any run) and ?
+// (exactly one byte). It is iterative and allocation-free.
+func wildcardMatch(pattern, s string) bool {
+	pi, si := 0, 0
+	star, resume := -1, 0
+	for si < len(s) {
+		switch {
+		case pi < len(pattern) && (pattern[pi] == '?' || pattern[pi] == s[si]):
+			pi++
+			si++
+		case pi < len(pattern) && pattern[pi] == '*':
+			star = pi
+			resume = si
+			pi++
+		case star >= 0:
+			pi = star + 1
+			resume++
+			si = resume
+		default:
+			return false
+		}
+	}
+	for pi < len(pattern) && pattern[pi] == '*' {
+		pi++
+	}
+	return pi == len(pattern)
 }
 
 func (c Config) validate() error {

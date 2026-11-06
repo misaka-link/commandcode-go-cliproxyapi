@@ -87,6 +87,10 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
   body { padding: 20px 16px; }
   .quota-grid { grid-template-columns: 1fr; }
 }
+.quota-whitelist { margin: 0 0 24px; padding: 20px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-primary); box-shadow: var(--shadow); }
+.quota-whitelist-title { margin: 0 0 6px; font-size: 18px; font-weight: 700; }
+.quota-whitelist-input { width: 100%; min-height: 104px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.quota-whitelist-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -120,6 +124,15 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
     </svg>
     <h1 class="quota-title">CommandCode 账户与额度</h1><p class="quota-description">支持 GOAT / Pro / Max，不支持 Go。新 key 联网核验身份和有效订阅后才保存。也可从 CPA 的 OAuth 登录项进行浏览器授权。仅没有邮箱的账户会自动查询一次额度。启用、禁用和删除请到认证文件页操作。</p>
   </header>
+  <section class="quota-whitelist">
+    <h2 class="quota-whitelist-title">模型白名单</h2>
+    <p class="quota-description">只有命中下列关键词/模式的模型才会注册（每行一个，也支持逗号分隔；支持 * 通配，如 glm-5*；留空表示全部注册）。</p>
+    <textarea id="model-whitelist" class="quota-input quota-whitelist-input" rows="5" spellcheck="false" autocapitalize="off" placeholder="claude&#10;gpt-6&#10;deepseek-v4&#10;glm-5*"></textarea>
+    <div class="quota-whitelist-actions">
+      <button id="save-whitelist" class="quota-refresh" type="button">保存白名单</button>
+      <span id="whitelist-status" class="quota-status" role="status"></span>
+    </div>
+  </section>
   <form id="save-form" class="quota-form" autocomplete="off">
     <label class="quota-field-label" for="api-key">API key</label>
     <input id="api-key" class="quota-input" type="password" autocomplete="off" spellcheck="false" autocapitalize="off">
@@ -164,10 +177,14 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
   const reloadButton = document.getElementById("reload-accounts");
   const listStatus = document.getElementById("list-status");
   const legacyStatus = document.getElementById("legacy-status");
+  const whitelistInput = document.getElementById("model-whitelist");
+  const saveWhitelistButton = document.getElementById("save-whitelist");
+  const whitelistStatus = document.getElementById("whitelist-status");
   const marker = "/v0/resource/plugins/commandcode-go-cliproxyapi/quota";
   const prefix = location.pathname.endsWith(marker) ? location.pathname.slice(0, -marker.length) : "";
   const quotaEndpoint = prefix + "/v0/management/plugins/commandcode-go-cliproxyapi/quota-usage";
   const accountsEndpoint = prefix + "/v0/management/plugins/commandcode-go-cliproxyapi/accounts";
+  const configEndpoint = prefix + "/v0/management/plugins/commandcode-go-cliproxyapi/config";
   const storageKey = "commandcode-go-cliproxyapi:quota";
   const values = new Map();
   const labels = new Map();
@@ -264,6 +281,40 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Request failed");
       return data;
+    });
+  }
+  function apiRequest(method, url, body) {
+    const headers = {"Content-Type": "application/json"};
+    const key = auth();
+    if (key) headers.Authorization = "Bearer " + key;
+    return fetch(url, {method, headers, body: body === undefined ? undefined : JSON.stringify(body)}).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Request failed");
+      return data;
+    });
+  }
+  function setWhitelistStatus(message, isError) {
+    whitelistStatus.className = message ? (isError ? "quota-status quota-error" : "quota-status quota-success") : "quota-status";
+    whitelistStatus.textContent = message || "";
+  }
+  function whitelistEntries() {
+    return whitelistInput.value.split(/[\n,]+/).map(entry => entry.trim()).filter(Boolean);
+  }
+  function loadWhitelist() {
+    return apiRequest("GET", configEndpoint).then(config => {
+      const list = Array.isArray(config && config["model-whitelist"]) ? config["model-whitelist"] : [];
+      whitelistInput.value = list.join("\n");
+      setWhitelistStatus(list.length ? "当前 " + list.length + " 条规则。" : "当前未设置（注册全部模型）。", false);
+    }).catch(err => setWhitelistStatus("读取白名单失败：" + (err.message || "请求失败"), true));
+  }
+  function saveWhitelist() {
+    if (saveWhitelistButton.disabled) return;
+    saveWhitelistButton.disabled = true;
+    setWhitelistStatus("正在保存…", false);
+    apiRequest("PATCH", configEndpoint, {"model-whitelist": whitelistEntries()}).then(() => {
+      setWhitelistStatus("已保存，CPA 正在重载插件，稍后生效。", false);
+    }).catch(err => setWhitelistStatus("保存失败：" + (err.message || "请求失败"), true)).then(() => {
+      saveWhitelistButton.disabled = false;
     });
   }
   function setSaveStatus(message, isError) {
@@ -418,12 +469,16 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
     apiKeyInput.disabled = true;
     saveButton.disabled = true;
     reloadButton.disabled = true;
+    saveWhitelistButton.disabled = true;
+    whitelistInput.disabled = true;
     app.textContent = "";
     const p = document.createElement("p"); p.className = "quota-error"; p.setAttribute("role", "status"); p.textContent = "Enable Remember password in Management Center to use this page."; app.appendChild(p);
     return;
   }
   saveForm.addEventListener("submit", onSave);
   reloadButton.addEventListener("click", () => { if (!listLoading) loadList(); });
+  saveWhitelistButton.addEventListener("click", saveWhitelist);
+  loadWhitelist();
   loadList();
 })();
 </script>

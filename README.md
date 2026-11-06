@@ -140,6 +140,10 @@ plugins:
       request-timeout: "5m"
       max-response-bytes: 67108864        # 64 MiB
       allow-http: false                   # http:// base-url for local testing
+          # Optional model allowlist: only matching models are published.
+          # Plain entries are case-insensitive substring keywords; * and ? are wildcards.
+          # Empty or absent publishes every catalog model (default).
+          model-whitelist: []
 ```
 
 ### Configuration Options
@@ -158,6 +162,7 @@ plugins:
 | `request-timeout` | `duration` | `5m` | Upstream HTTP timeout (also bounds account/quota calls to 30s). |
 | `max-response-bytes` | `int64` | `67108864` | Maximum non-streaming response body size. |
 | `allow-http` | `bool` | `false` | Permit `http://` upstreams for local testing. |
+| `model-whitelist` | `list<string>` | `[]` | Only models whose upstream or public id matches an entry are published. Plain entries are case-insensitive substring keywords; entries containing `*` or `?` are wildcards (`*` also crosses `/`). Empty publishes all models. |
 
 ### Accounts
 

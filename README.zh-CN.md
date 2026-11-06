@@ -140,6 +140,10 @@ plugins:
       request-timeout: "5m"
       max-response-bytes: 67108864        # 64 MiB
       allow-http: false                   # 本地测试允许 http://
+          # 可选模型白名单：只有命中的模型才会注册/发布。
+          # 普通条目为不区分大小写的子串关键词；* 与 ? 为通配符。
+          # 留空或省略表示发布全部模型（默认）。
+          model-whitelist: []
 ```
 
 ### 配置项
@@ -158,6 +162,7 @@ plugins:
 | `request-timeout` | `duration` | `5m` | 上游 HTTP 超时（配额/账号请求另按 30s 上限）。 |
 | `max-response-bytes` | `int64` | `67108864` | 非流式响应体上限。 |
 | `allow-http` | `bool` | `false` | 允许 `http://` 上游，仅供本地测试。 |
+| `model-whitelist` | `list<string>` | `[]` | 只有上游或公开 id 命中条目的模型才会注册/发布。普通条目为不区分大小写的子串关键词；含 `*` 或 `?` 的条目按通配符匹配（`*` 可跨 `/`）。留空发布全部模型。 |
 
 ### 账户
 

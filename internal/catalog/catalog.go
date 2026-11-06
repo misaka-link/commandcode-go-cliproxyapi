@@ -293,6 +293,13 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 		if endpoint == "" {
 			endpoint = route.EndpointPath()
 		}
+		// Model whitelist: only matching models enter the routable snapshot,
+		// so they are never registered with the host or exposed via /v1/models.
+		// Empty whitelist allows everything (backward compatible).
+		if !m.cfg.ModelAllowed(e.ID, config.PublicID(m.cfg, e.ID)) {
+			unsup = append(unsup, UnsupportedModel{UpstreamID: e.ID, Reason: "excluded by model-whitelist"})
+			continue
+		}
 		inputModes := firstNonEmpty(e.InputModes, e.InputModalities)
 		outputModes := firstNonEmpty(e.OutputModes, e.OutputModalities)
 		display := e.DisplayName

@@ -397,3 +397,37 @@ func TestValidateURLRejectsQueryFragmentUserinfo(t *testing.T) {
 		})
 	}
 }
+
+func TestModelWhitelistMatching(t *testing.T) {
+	c := Config{}
+	if !c.ModelAllowed("gpt-5.6-luna", "commandcode/gpt-5.6-luna") {
+		t.Fatal("empty whitelist must allow every model")
+	}
+	c.ModelWhitelist = []string{"Claude", "glm-5*", "deepseek-v4", "qwen3*max"}
+	cases := []struct {
+		upstream, public string
+		want             bool
+	}{
+		{"claude-opus-5", "commandcode/claude-opus-5", true},
+		{"glm-5.2", "commandcode/glm-5.2", true},
+		{"deepseek/deepseek-v4.1-flash", "commandcode/deepseek/deepseek-v4.1-flash", true},
+		{"qwen3.8-max", "commandcode/qwen3.8-max", true},
+		{"gpt-5.6-luna", "commandcode/gpt-5.6-luna", false},
+		{"minimax-m3", "commandcode/minimax-m3", false},
+	}
+	for _, tc := range cases {
+		if got := c.ModelAllowed(tc.upstream, tc.public); got != tc.want {
+			t.Errorf("ModelAllowed(%q, %q) = %v, want %v", tc.upstream, tc.public, got, tc.want)
+		}
+	}
+}
+
+func TestLoadModelWhitelistNormalized(t *testing.T) {
+	c, err := Load([]byte("model-whitelist:\n  - ' claude '\n  - claude\n  - ''\n  - gpt-6\n"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(c.ModelWhitelist) != 2 || c.ModelWhitelist[0] != "claude" || c.ModelWhitelist[1] != "gpt-6" {
+		t.Fatalf("whitelist = %#v", c.ModelWhitelist)
+	}
+}
