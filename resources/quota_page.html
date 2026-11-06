@@ -91,6 +91,7 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
 .quota-whitelist-title { margin: 0 0 6px; font-size: 18px; font-weight: 700; }
 .quota-whitelist-input { width: 100%; min-height: 104px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .quota-whitelist-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.quota-alias-toggle { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; color: var(--text-secondary); }
 </style>
 </head>
 <body>
@@ -140,6 +141,16 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
     <div class="quota-whitelist-actions">
       <button id="save-blacklist" class="quota-refresh" type="button">保存黑名单</button>
       <span id="blacklist-status" class="quota-status" role="status"></span>
+    </div>
+  </section>
+  <section class="quota-whitelist">
+    <h2 class="quota-whitelist-title">OAuth 模型别名</h2>
+    <p class="quota-description">把模型重命名为别名（原模型不再发布）。勾选「去掉前缀」时，所有模型按上游 ID 发布（如 deepseek/deepseek-v4.1-flash），不再保留 commandcode/ 前缀版本。</p>
+    <label class="quota-alias-toggle"><input id="alias-strip-prefix" type="checkbox"> 去掉 commandcode/ 前缀（别名 = 上游 ID，不保留原模型）</label>
+    <textarea id="model-aliases" class="quota-input quota-whitelist-input" rows="4" spellcheck="false" autocapitalize="off" placeholder="commandcode/deepseek/deepseek-v4.1-flash => deepseek-v4.1-flash&#10;commandcode/moonshotai/Kimi-K3 => kimi-k3"></textarea>
+    <div class="quota-whitelist-actions">
+      <button id="save-aliases" class="quota-refresh" type="button">保存别名</button>
+      <span id="aliases-status" class="quota-status" role="status"></span>
     </div>
   </section>
   <form id="save-form" class="quota-form" autocomplete="off">
@@ -192,6 +203,10 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
   const blacklistInput = document.getElementById("model-blacklist");
   const saveBlacklistButton = document.getElementById("save-blacklist");
   const blacklistStatus = document.getElementById("blacklist-status");
+  const aliasesInput = document.getElementById("model-aliases");
+  const aliasStripPrefix = document.getElementById("alias-strip-prefix");
+  const saveAliasesButton = document.getElementById("save-aliases");
+  const aliasesStatus = document.getElementById("aliases-status");
   const marker = "/v0/resource/plugins/commandcode-go-cliproxyapi/quota";
   const prefix = location.pathname.endsWith(marker) ? location.pathname.slice(0, -marker.length) : "";
   const quotaEndpoint = prefix + "/v0/management/plugins/commandcode-go-cliproxyapi/quota-usage";
@@ -353,6 +368,37 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
       saveBlacklistButton.disabled = false;
     });
   }
+  function setAliasesStatus(message, isError) {
+    aliasesStatus.className = message ? (isError ? "quota-status quota-error" : "quota-status quota-success") : "quota-status";
+    aliasesStatus.textContent = message || "";
+  }
+  function aliasEntries() {
+    return aliasesInput.value.split(/\n+/).map(line => line.trim()).filter(Boolean).map(line => {
+      const arrow = line.indexOf("=>");
+      if (arrow >= 0) return {name: line.slice(0, arrow).trim(), alias: line.slice(arrow + 2).trim()};
+      const eq = line.indexOf("=");
+      if (eq > 0) return {name: line.slice(0, eq).trim(), alias: line.slice(eq + 1).trim()};
+      return {name: line, alias: ""};
+    }).filter(entry => entry.name && entry.alias);
+  }
+  function loadAliases() {
+    return apiRequest("GET", configEndpoint).then(config => {
+      const list = Array.isArray(config && config["model-aliases"]) ? config["model-aliases"] : [];
+      aliasesInput.value = list.map(entry => (entry.name || "") + " => " + (entry.alias || "")).join("\n");
+      aliasStripPrefix.checked = !!(config && config["model-alias-strip-prefix"]);
+      setAliasesStatus(list.length ? "当前 " + list.length + " 条别名。" : (aliasStripPrefix.checked ? "已开启去前缀。" : "当前未设置。"), false);
+    }).catch(err => setAliasesStatus("读取别名失败：" + (err.message || "请求失败"), true));
+  }
+  function saveAliases() {
+    if (saveAliasesButton.disabled) return;
+    saveAliasesButton.disabled = true;
+    setAliasesStatus("正在保存…", false);
+    apiRequest("PATCH", configEndpoint, {"model-aliases": aliasEntries(), "model-alias-strip-prefix": !!aliasStripPrefix.checked}).then(() => {
+      setAliasesStatus("已保存，CPA 正在重载插件，稍后生效。", false);
+    }).catch(err => setAliasesStatus("保存失败：" + (err.message || "请求失败"), true)).then(() => {
+      saveAliasesButton.disabled = false;
+    });
+  }
   function setSaveStatus(message, isError) {
     saveStatus.className = message ? (isError ? "quota-status quota-error" : "quota-status quota-success") : "quota-status";
     saveStatus.textContent = message || "";
@@ -509,6 +555,9 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
     whitelistInput.disabled = true;
     saveBlacklistButton.disabled = true;
     blacklistInput.disabled = true;
+    saveAliasesButton.disabled = true;
+    aliasesInput.disabled = true;
+    aliasStripPrefix.disabled = true;
     app.textContent = "";
     const p = document.createElement("p"); p.className = "quota-error"; p.setAttribute("role", "status"); p.textContent = "Enable Remember password in Management Center to use this page."; app.appendChild(p);
     return;
@@ -517,8 +566,10 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
   reloadButton.addEventListener("click", () => { if (!listLoading) loadList(); });
   saveWhitelistButton.addEventListener("click", saveWhitelist);
   saveBlacklistButton.addEventListener("click", saveBlacklist);
+  saveAliasesButton.addEventListener("click", saveAliases);
   loadWhitelist();
   loadBlacklist();
+  loadAliases();
   loadList();
 })();
 </script>

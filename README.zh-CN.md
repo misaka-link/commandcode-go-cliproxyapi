@@ -147,6 +147,11 @@ plugins:
           # 可选模型黑名单，在白名单之后生效（黑名单优先）。
           # 语法同上；条目以 = 开头表示精确匹配 id。
           model-blacklist: []
+          # 可选 OAuth 风格模型别名：{name, alias} 重命名模型，原 id 不再发布。
+          # strip-prefix 让所有模型按上游 id 发布（无 commandcode/ 前缀），
+          # 除非被某条 alias 覆盖。
+          model-aliases: []
+          model-alias-strip-prefix: false
 ```
 
 ### 配置项
@@ -167,6 +172,8 @@ plugins:
 | `allow-http` | `bool` | `false` | 允许 `http://` 上游，仅供本地测试。 |
 | `model-whitelist` | `list<string>` | `[]` | 只有上游或公开 id 命中条目的模型才会注册/发布。普通条目为不区分大小写的子串关键词；含 `*` 或 `?` 的条目按通配符匹配（`*` 可跨 `/`）；以 `=` 开头的条目为精确匹配。留空发布全部模型。 |
 | `model-blacklist` | `list<string>` | `[]` | 命中条目的模型在白名单之后被排除（黑名单优先）。语法同 `model-whitelist`。 |
+| `model-aliases` | `list<{name,alias}>` | `[]` | OAuth 风格重命名：`name` 匹配上游或当前公开 id，`alias` 成为唯一发布的 id（不保留原模型）。 |
+| `model-alias-strip-prefix` | `bool` | `false` | 所有模型按上游 id 发布（去掉 `commandcode/` 前缀），除非被某条 alias 覆盖。 |
 
 ### 账户
 

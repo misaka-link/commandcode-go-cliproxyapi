@@ -475,3 +475,24 @@ func TestLoadModelBlacklistNormalized(t *testing.T) {
 		t.Fatalf("blacklist = %#v", c.ModelBlacklist)
 	}
 }
+
+func TestModelAliasFor(t *testing.T) {
+	c := Config{ModelPrefix: ModelPrefix{Enabled: true, Value: "commandcode"}}
+	const upstream = "deepseek/deepseek-v4.1-flash"
+	public := PublicID(c, upstream)
+	if got := c.ModelAliasFor(upstream, public); got != public {
+		t.Fatalf("no alias = %q, want %q", got, public)
+	}
+	c.ModelAliases = []ModelAlias{{Name: public, Alias: "ds-v4.1"}}
+	if got := c.ModelAliasFor(upstream, public); got != "ds-v4.1" {
+		t.Fatalf("alias = %q", got)
+	}
+	c.ModelAliasStripPrefix = true
+	if got := c.ModelAliasFor(upstream, public); got != "ds-v4.1" {
+		t.Fatalf("custom alias must win over strip = %q", got)
+	}
+	c.ModelAliases = nil
+	if got := c.ModelAliasFor(upstream, public); got != upstream {
+		t.Fatalf("strip only = %q", got)
+	}
+}

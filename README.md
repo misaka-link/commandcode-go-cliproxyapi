@@ -147,6 +147,12 @@ plugins:
           # Optional model denylist, applied after the allowlist (deny wins).
           # Same syntax; prefix an entry with = for an exact id match.
           model-blacklist: []
+          # Optional OAuth-style model aliases: {name, alias} renames a model and
+          # the original id is no longer published. strip-prefix publishes every
+          # model under its upstream id (no commandcode/ prefix) unless an alias
+          # overrides it.
+          model-aliases: []
+          model-alias-strip-prefix: false
 ```
 
 ### Configuration Options
@@ -167,6 +173,8 @@ plugins:
 | `allow-http` | `bool` | `false` | Permit `http://` upstreams for local testing. |
 | `model-whitelist` | `list<string>` | `[]` | Only models whose upstream or public id matches an entry are published. Plain entries are case-insensitive substring keywords; entries containing `*` or `?` are wildcards (`*` also crosses `/`); an entry prefixed with `=` is an exact id match. Empty publishes all models. |
 | `model-blacklist` | `list<string>` | `[]` | Models matching an entry are excluded after the allowlist (deny wins). Same syntax as `model-whitelist`. |
+| `model-aliases` | `list<{name,alias}>` | `[]` | OAuth-style renames: `name` matches the upstream or current public id, `alias` becomes the only published id (the original is not kept). |
+| `model-alias-strip-prefix` | `bool` | `false` | Publish every model under its upstream id (no `commandcode/` prefix) unless a `model-aliases` entry overrides it. |
 
 ### Accounts
 

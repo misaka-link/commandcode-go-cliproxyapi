@@ -64,6 +64,19 @@ type Config struct {
 	// ModelBlacklist removes published models after the whitelist. It uses the
 	// same entry syntax as ModelWhitelist and takes precedence over it.
 	ModelBlacklist []string
+	// ModelAliases renames published models (OAuth-alias style). Each entry maps
+	// a model (upstream or current public id) to a new client-visible id; the
+	// original id is not published.
+	ModelAliases []ModelAlias
+	// ModelAliasStripPrefix publishes every model under its upstream id (no
+	// model-prefix) unless a ModelAliases entry overrides it.
+	ModelAliasStripPrefix bool
+}
+
+// ModelAlias maps one model id to a client-visible alias.
+type ModelAlias struct {
+	Name  string `yaml:"name" json:"name"`
+	Alias string `yaml:"alias" json:"alias"`
 }
 
 // rawConfig mirrors the YAML shape; pointer fields distinguish "unset"
@@ -75,15 +88,17 @@ type rawConfig struct {
 	ModelPrefix rawPrefix `yaml:"model-prefix"`
 	// LegacyAPIKeys carries the retired api-keys node only long enough
 	// to see whether the key exists. Its contents are not interpreted.
-	LegacyAPIKeys    yaml.Node                `yaml:"api-keys"`
-	Catalog          rawCatalog               `yaml:"catalog"`
-	Protocols        rawProtocols             `yaml:"protocols"`
-	RouteOverrides   map[string]RouteOverride `yaml:"route-overrides"`
-	AllowHTTP        bool                     `yaml:"allow-http"`
-	RequestTimeout   *string                  `yaml:"request-timeout"`
-	MaxResponseBytes *int64                   `yaml:"max-response-bytes"`
-	ModelWhitelist   []string                 `yaml:"model-whitelist"`
-	ModelBlacklist   []string                 `yaml:"model-blacklist"`
+	LegacyAPIKeys         yaml.Node                `yaml:"api-keys"`
+	Catalog               rawCatalog               `yaml:"catalog"`
+	Protocols             rawProtocols             `yaml:"protocols"`
+	RouteOverrides        map[string]RouteOverride `yaml:"route-overrides"`
+	AllowHTTP             bool                     `yaml:"allow-http"`
+	RequestTimeout        *string                  `yaml:"request-timeout"`
+	MaxResponseBytes      *int64                   `yaml:"max-response-bytes"`
+	ModelWhitelist        []string                 `yaml:"model-whitelist"`
+	ModelBlacklist        []string                 `yaml:"model-blacklist"`
+	ModelAliases          []ModelAlias             `yaml:"model-aliases"`
+	ModelAliasStripPrefix bool                     `yaml:"model-alias-strip-prefix"`
 }
 
 type rawPrefix struct {
@@ -147,12 +162,14 @@ func Load(yamlBytes []byte) (Config, error) {
 			Messages:        orDefault(raw.Protocols.Messages, true),
 			Responses:       orDefault(raw.Protocols.Responses, true),
 		},
-		RouteOverrides:   raw.RouteOverrides,
-		AllowHTTP:        raw.AllowHTTP,
-		RequestTimeout:   requestTimeout,
-		MaxResponseBytes: orDefault(raw.MaxResponseBytes, DefaultMaxResponseBytes),
-		ModelWhitelist:   normalizeWhitelist(raw.ModelWhitelist),
-		ModelBlacklist:   normalizeWhitelist(raw.ModelBlacklist),
+		RouteOverrides:        raw.RouteOverrides,
+		AllowHTTP:             raw.AllowHTTP,
+		RequestTimeout:        requestTimeout,
+		MaxResponseBytes:      orDefault(raw.MaxResponseBytes, DefaultMaxResponseBytes),
+		ModelWhitelist:        normalizeWhitelist(raw.ModelWhitelist),
+		ModelBlacklist:        normalizeWhitelist(raw.ModelBlacklist),
+		ModelAliases:          normalizeModelAliases(raw.ModelAliases),
+		ModelAliasStripPrefix: raw.ModelAliasStripPrefix,
 	}
 	if raw.CatalogURL != nil {
 		// Mirror the derived-default trim so an explicit trailing-slash
@@ -209,6 +226,53 @@ func normalizeWhitelist(in []string) []string {
 		return nil
 	}
 	return out
+}
+
+const maxModelAliases = 500
+
+// normalizeModelAliases trims entries, drops incomplete or duplicate names, and
+// bounds the list.
+func normalizeModelAliases(in []ModelAlias) []ModelAlias {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]ModelAlias, 0, len(in))
+	seen := make(map[string]bool, len(in))
+	for _, entry := range in {
+		name := strings.TrimSpace(entry.Name)
+		alias := strings.TrimSpace(entry.Alias)
+		if name == "" || alias == "" {
+			continue
+		}
+		key := strings.ToLower(name)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, ModelAlias{Name: name, Alias: alias})
+		if len(out) >= maxModelAliases {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// ModelAliasFor resolves the published id for a model. A custom alias wins,
+// then the strip-prefix option (publish the upstream id), otherwise the
+// configured public id.
+func (c Config) ModelAliasFor(upstreamID, publicID string) string {
+	for _, entry := range c.ModelAliases {
+		if strings.EqualFold(entry.Name, upstreamID) || strings.EqualFold(entry.Name, publicID) {
+			return entry.Alias
+		}
+	}
+	if c.ModelAliasStripPrefix {
+		return upstreamID
+	}
+	return publicID
 }
 
 // ModelAllowed reports whether a model passes the configured whitelist.

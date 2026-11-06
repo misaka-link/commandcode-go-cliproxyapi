@@ -306,8 +306,12 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 		if display == "" {
 			display = e.ID
 		}
+		// Model aliases (OAuth-alias style) replace the client-visible id; the
+		// original public id is not published when an alias or strip-prefix
+		// applies.
+		publicID := m.cfg.ModelAliasFor(e.ID, config.PublicID(m.cfg, e.ID))
 		rec := ModelRecord{
-			PublicID:     config.PublicID(m.cfg, e.ID),
+			PublicID:     publicID,
 			UpstreamID:   e.ID,
 			DisplayName:  display,
 			Protocol:     route,

@@ -1211,3 +1211,30 @@ func TestModelBlacklistFiltersSnapshot(t *testing.T) {
 		t.Fatalf("diagnostics black=%d white=%d (%v)", black, white, m.Unsupported())
 	}
 }
+
+func TestModelAliasReplacesPublicID(t *testing.T) {
+	body := `{"data":[
+		{"id":"deepseek/deepseek-v4.1-flash"},
+		{"id":"moonshotai/Kimi-K3"}
+	]}`
+	cfg := testCfg()
+	cfg.ModelAliases = []config.ModelAlias{{Name: "commandcode/deepseek/deepseek-v4.1-flash", Alias: "ds-v4.1"}}
+	cfg.ModelAliasStripPrefix = true
+	fc := &fakeClient{resp: pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(body)}}
+	m := newManager(cfg, fc)
+	mustRefresh(t, m)
+	got := map[string]bool{}
+	for _, mo := range m.Models() {
+		got[mo.PublicID] = true
+	}
+	want := map[string]bool{"ds-v4.1": true, "moonshotai/Kimi-K3": true}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("public ids = %v, want %v", got, want)
+	}
+	if got["commandcode/deepseek/deepseek-v4.1-flash"] {
+		t.Fatal("original prefixed id must not be published")
+	}
+	if rec, ok := m.Lookup("ds-v4.1"); !ok || rec.UpstreamID != "deepseek/deepseek-v4.1-flash" {
+		t.Fatalf("alias lookup = %+v ok=%v", rec, ok)
+	}
+}

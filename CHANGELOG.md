@@ -2,6 +2,20 @@
 
 本文件记录面向使用者的更新摘要。详细版本历史见 [RELEASE_NOTES.md](RELEASE_NOTES.md)，操作步骤见 [中文说明](README.zh-CN.md) / [English README](README.md)。
 
+## v0.2.3 — 2026-11-07
+
+- 新增 **OAuth 风格模型别名**：`model-aliases`（`{name, alias}`）把模型重命名为别名，**原模型不再发布**。
+- 新增 `model-alias-strip-prefix`：开启后所有模型按**上游 id** 发布（去掉 `commandcode/` 前缀），不保留带前缀的旧 id；自定义别名优先。
+- 插件页面新增「OAuth 模型别名」区块：可勾选「去掉前缀」并编辑别名（`name => alias`），保存写入 CPA 插件配置并自动重载。
+- 说明：CPA 原生的 `oauth-model-alias` 仅对 OAuth 凭据生效（插件认证文件是 `api_key`），因此该能力在插件内实现。
+
+### v0.2.3 English highlights — 2026-11-07
+
+- Add **OAuth-style model aliases**: `model-aliases` (`{name, alias}`) renames a model; the **original id is not published**.
+- Add `model-alias-strip-prefix`: publish every model under its **upstream id** (no `commandcode/` prefix), dropping the prefixed ids; explicit aliases win.
+- The plugin page gains an **OAuth model aliases** section (strip-prefix toggle + `name => alias` editor) that saves to the CPA plugin config and reloads.
+- Note: CPA's native `oauth-model-alias` only applies to OAuth credentials; plugin auth files are `api_key`, so this is implemented in the plugin.
+
 ## v0.2.2 — 2026-11-07
 
 - 新增模型黑名单 `model-blacklist`：在白名单之后生效（**黑名单优先**），命中的模型不会注册/发布。
