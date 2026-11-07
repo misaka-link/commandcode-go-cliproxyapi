@@ -591,3 +591,19 @@ func TestQuotaPageUsesNativeQuotaStylesAndThemeBridge(t *testing.T) {
 		}
 	}
 }
+
+func TestQuotaPageSupportsManualManagementKey(t *testing.T) {
+	page := resources.QuotaPage
+	for _, marker := range []string{
+		`id="manual-key"`,
+		`sessionStorage.getItem("cli-proxy-auth-manual")`,
+		`sessionStorage.setItem("cli-proxy-auth-manual", key)`,
+		"useManualKey",
+		"未检测到管理 Key",
+		"type=\"password\"",
+	} {
+		if !strings.Contains(page, marker) {
+			t.Fatalf("quota page missing manual-key marker %q", marker)
+		}
+	}
+}

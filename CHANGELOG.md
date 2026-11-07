@@ -2,6 +2,18 @@
 
 本文件记录面向使用者的更新摘要。详细版本历史见 [RELEASE_NOTES.md](RELEASE_NOTES.md)，操作步骤见 [中文说明](README.zh-CN.md) / [English README](README.md)。
 
+## v0.2.6 — 2026-11-07
+
+- 插件页面在检测不到管理后台记住的 Key 时，不再只提示「Enable Remember password」，而是显示**手动输入管理 Key**的输入框；验证通过后直接加载白名单/黑名单/别名/模型列表/账户。
+- 手动 Key 只保存在 `sessionStorage`（关闭标签页即清除），输入框为 `type=password`，不写入 localStorage、不写日志。
+- 仍保留「Remember password」自动读取逻辑：如果管理后台已记住 Key，页面照常自动使用。
+
+### v0.2.6 English highlights — 2026-11-07
+
+- When no remembered management key is available, the plugin page now shows a **manual key** input instead of only the "Enable Remember password" hint; after validation it loads the whitelist/blacklist/aliases/model lists/accounts.
+- The manual key lives only in `sessionStorage` (cleared when the tab closes), uses a `type=password` input, and is never written to localStorage or logs.
+- The existing "Remember password" auto-read path still works when the management center has stored a key.
+
 ## v0.2.5 — 2026-11-07
 
 - 修复：白名单/黑名单现在同时匹配 **上游 ID、原 public ID、别名后的 public ID**，配置了 `model-aliases` 时用别名也能正确过滤。

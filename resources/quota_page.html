@@ -91,6 +91,7 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
 .quota-whitelist-title { margin: 0 0 6px; font-size: 18px; font-weight: 700; }
 .quota-whitelist-input { width: 100%; min-height: 104px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .quota-whitelist-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.quota-whitelist-actions .quota-input { flex: 1 1 240px; min-width: 220px; }
 .quota-alias-toggle { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; color: var(--text-secondary); }
 .quota-table-wrap { overflow-x: auto; margin: 8px 0 16px; }
 .quota-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -132,6 +133,15 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
     </svg>
     <h1 class="quota-title">CommandCode 账户与额度</h1><p class="quota-description">支持 GOAT / Pro / Max，不支持 Go。新 key 联网核验身份和有效订阅后才保存。也可从 CPA 的 OAuth 登录项进行浏览器授权。仅没有邮箱的账户会自动查询一次额度。启用、禁用和删除请到认证文件页操作。</p>
   </header>
+  <section id="manual-auth" class="quota-whitelist" hidden>
+    <h2 class="quota-whitelist-title">管理 Key</h2>
+    <p class="quota-description">未检测到管理后台记住的 Key。可直接在下方输入本次会话使用的管理 Key（只保存在 sessionStorage，关闭标签页即清除）。也可以在管理后台勾选 Remember password，让页面自动使用记住的 Key。</p>
+    <div class="quota-whitelist-actions">
+      <input id="manual-key" class="quota-input" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="管理 Key（X-Management-Key）">
+      <button id="use-manual-key" class="quota-refresh" type="button">使用此 Key</button>
+      <span id="manual-key-status" class="quota-status" role="status"></span>
+    </div>
+  </section>
   <section class="quota-whitelist">
     <h2 class="quota-whitelist-title">模型白名单</h2>
     <p class="quota-description">只有命中下列关键词/模式的模型才会注册（每行一个，也支持逗号分隔；支持 * 通配，按全名匹配，建议写成 *关键词*，如 *glm-5*；留空表示全部注册）。</p>
@@ -242,6 +252,10 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
   const modelsSummary = document.getElementById("models-summary");
   const refreshModelsButton = document.getElementById("refresh-models");
   const modelsStatus = document.getElementById("models-status");
+  const manualAuth = document.getElementById("manual-auth");
+  const manualKeyInput = document.getElementById("manual-key");
+  const useManualKeyButton = document.getElementById("use-manual-key");
+  const manualKeyStatus = document.getElementById("manual-key-status");
   const marker = "/v0/resource/plugins/commandcode-go-cliproxyapi/quota";
   const prefix = location.pathname.endsWith(marker) ? location.pathname.slice(0, -marker.length) : "";
   const quotaEndpoint = prefix + "/v0/management/plugins/commandcode-go-cliproxyapi/quota-usage";
@@ -319,6 +333,8 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
     });
   }
   function auth() {
+    const manual = sessionStorage.getItem("cli-proxy-auth-manual");
+    if (manual) return manual;
     const raw = localStorage.getItem("cli-proxy-auth");
     if (!raw) return "";
     try {
@@ -354,6 +370,53 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Request failed");
       return data;
+    });
+  }
+  function setManualKeyStatus(message, isError) {
+    manualKeyStatus.className = message ? (isError ? "quota-status quota-error" : "quota-status quota-success") : "quota-status";
+    manualKeyStatus.textContent = message || "";
+  }
+  function setControlsEnabled(enabled) {
+    apiKeyInput.disabled = !enabled;
+    saveButton.disabled = !enabled;
+    reloadButton.disabled = !enabled;
+    saveWhitelistButton.disabled = !enabled;
+    whitelistInput.disabled = !enabled;
+    saveBlacklistButton.disabled = !enabled;
+    blacklistInput.disabled = !enabled;
+    saveAliasesButton.disabled = !enabled;
+    aliasesInput.disabled = !enabled;
+    aliasStripPrefix.disabled = !enabled;
+    refreshModelsButton.disabled = !enabled;
+  }
+  function loadAllData() {
+    loadWhitelist();
+    loadBlacklist();
+    loadAliases();
+    loadModels();
+    loadList();
+  }
+  function useManualKey() {
+    const key = manualKeyInput.value.trim();
+    if (!key) {
+      setManualKeyStatus("请输入管理 Key。", true);
+      return;
+    }
+    useManualKeyButton.disabled = true;
+    setManualKeyStatus("正在验证…", false);
+    sessionStorage.setItem("cli-proxy-auth-manual", key);
+    apiRequest("GET", configEndpoint).then(() => {
+      setManualKeyStatus("验证通过，正在加载数据…", false);
+      manualAuth.hidden = true;
+      manualKeyInput.value = "";
+      app.textContent = "";
+      setControlsEnabled(true);
+      loadAllData();
+    }).catch(err => {
+      sessionStorage.removeItem("cli-proxy-auth-manual");
+      setManualKeyStatus("Key 无效：" + (err.message || "请求失败"), true);
+    }).then(() => {
+      useManualKeyButton.disabled = false;
     });
   }
   function setWhitelistStatus(message, isError) {
@@ -635,31 +698,30 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
       saveButton.disabled = false;
     });
   }
-  if (!auth()) {
-    apiKeyInput.disabled = true;
-    saveButton.disabled = true;
-    reloadButton.disabled = true;
-    saveWhitelistButton.disabled = true;
-    whitelistInput.disabled = true;
-    saveBlacklistButton.disabled = true;
-    blacklistInput.disabled = true;
-    saveAliasesButton.disabled = true;
-    aliasesInput.disabled = true;
-    aliasStripPrefix.disabled = true;
-    refreshModelsButton.disabled = true;
-    app.textContent = "";
-    const p = document.createElement("p"); p.className = "quota-error"; p.setAttribute("role", "status"); p.textContent = "Enable Remember password in Management Center to use this page."; app.appendChild(p);
-    return;
-  }
   saveForm.addEventListener("submit", onSave);
   reloadButton.addEventListener("click", () => { if (!listLoading) loadList(); });
   saveWhitelistButton.addEventListener("click", saveWhitelist);
   saveBlacklistButton.addEventListener("click", saveBlacklist);
   saveAliasesButton.addEventListener("click", saveAliases);
+  refreshModelsButton.addEventListener("click", loadModels);
+  useManualKeyButton.addEventListener("click", useManualKey);
+  manualKeyInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      useManualKey();
+    }
+  });
+  if (!auth()) {
+    setControlsEnabled(false);
+    manualAuth.hidden = false;
+    app.textContent = "";
+    const p = document.createElement("p"); p.className = "quota-muted"; p.setAttribute("role", "status"); p.textContent = "未检测到管理 Key，请在上方手动输入。"; app.appendChild(p);
+    return;
+  }
+  manualAuth.hidden = true;
   loadWhitelist();
   loadBlacklist();
   loadAliases();
-  refreshModelsButton.addEventListener("click", loadModels);
   loadModels();
   loadList();
 })();
