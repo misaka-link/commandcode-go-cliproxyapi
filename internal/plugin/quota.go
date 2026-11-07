@@ -210,8 +210,9 @@ func (m *Manager) modelsManagement() (pluginapi.ManagementResponse, error) {
 		Published []publishedModel       `json:"published"`
 	}{}
 	if mgr != nil {
-		resp.Raw = mgr.All()
-		for _, rec := range mgr.Models() {
+		raw, models := mgr.Snapshot()
+		resp.Raw = raw
+		for _, rec := range models {
 			resp.Published = append(resp.Published, publishedModel{
 				ID:          rec.PublicID,
 				UpstreamID:  rec.UpstreamID,

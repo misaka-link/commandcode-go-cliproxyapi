@@ -496,3 +496,18 @@ func TestModelAliasFor(t *testing.T) {
 		t.Fatalf("strip only = %q", got)
 	}
 }
+
+func TestModelSelectedMatchesAliasIDs(t *testing.T) {
+	c := Config{
+		ModelWhitelist: []string{"ds-v4.1"},
+		ModelAliases:   []ModelAlias{{Name: "deepseek/deepseek-v4.1-flash", Alias: "ds-v4.1"}},
+	}
+	if ok, reason := c.ModelSelected("deepseek/deepseek-v4.1-flash", "commandcode/deepseek/deepseek-v4.1-flash"); !ok {
+		t.Fatalf("whitelist alias should match: ok=%v reason=%s", ok, reason)
+	}
+	c.ModelWhitelist = nil
+	c.ModelBlacklist = []string{"ds-v4.1"}
+	if ok, reason := c.ModelSelected("deepseek/deepseek-v4.1-flash", "commandcode/deepseek/deepseek-v4.1-flash"); ok || reason != "excluded by model-blacklist" {
+		t.Fatalf("blacklist alias should match: ok=%v reason=%s", ok, reason)
+	}
+}

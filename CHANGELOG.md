@@ -2,6 +2,22 @@
 
 本文件记录面向使用者的更新摘要。详细版本历史见 [RELEASE_NOTES.md](RELEASE_NOTES.md)，操作步骤见 [中文说明](README.zh-CN.md) / [English README](README.md)。
 
+## v0.2.5 — 2026-11-07
+
+- 修复：白名单/黑名单现在同时匹配 **上游 ID、原 public ID、别名后的 public ID**，配置了 `model-aliases` 时用别名也能正确过滤。
+- 修复：模型列表端点改为一次性原子快照（`Manager.Snapshot`），避免刷新期间 `raw`/`published` 撕裂导致排除数为负。
+- 修复：通配符示例改为 `*glm-5*`，文档说明通配符是**全名匹配**（带厂商前缀时需前后加 `*`）。
+- 优化：速率限制 bucket 的描述改为「已用 x / 上限 y」，避免误读为剩余额度。
+- 补充：别名过滤与快照一致性的单元测试。
+
+### v0.2.5 English highlights — 2026-11-07
+
+- Fix: whitelist/blacklist now match the **upstream id, the raw public id, and the aliased public id**, so filters work when `model-aliases` is configured.
+- Fix: the models endpoint uses one atomic `Manager.Snapshot`, preventing torn `raw`/`published` views (negative excluded counts) during refreshes.
+- Fix: wildcard examples now use `*glm-5*`; docs state wildcards are **whole-id** matches (add leading/trailing `*` for vendor-prefixed ids).
+- Improve: rate-limit bucket descriptions now read "used x / cap y" instead of a bare ratio.
+- Tests: alias-aware filtering and snapshot consistency.
+
 ## v0.2.4 — 2026-11-07
 
 - 插件页面新增「模型列表」：并排展示**未过滤的原始目录**（含每个模型的排除原因）与**过滤后实际发布**的列表。

@@ -1268,3 +1268,22 @@ func TestAllRetainsFilteredModels(t *testing.T) {
 		t.Errorf("Qwen excluded reason = %q", got)
 	}
 }
+
+func TestSnapshotReturnsConsistentView(t *testing.T) {
+	body := `{"data":[
+		{"id":"moonshotai/Kimi-K3"},
+		{"id":"Qwen/Qwen3.8-Max"}
+	]}`
+	cfg := testCfg()
+	cfg.ModelWhitelist = []string{"kimi"}
+	fc := &fakeClient{resp: pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(body)}}
+	m := newManager(cfg, fc)
+	mustRefresh(t, m)
+	all, models := m.Snapshot()
+	if len(all) != 2 || len(models) != 1 {
+		t.Fatalf("snapshot = %d all / %d models, want 2 / 1", len(all), len(models))
+	}
+	if models[0].UpstreamID != "moonshotai/Kimi-K3" {
+		t.Fatalf("published = %+v", models[0])
+	}
+}

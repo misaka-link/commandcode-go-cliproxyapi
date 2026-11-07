@@ -134,8 +134,8 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
   </header>
   <section class="quota-whitelist">
     <h2 class="quota-whitelist-title">模型白名单</h2>
-    <p class="quota-description">只有命中下列关键词/模式的模型才会注册（每行一个，也支持逗号分隔；支持 * 通配，如 glm-5*；留空表示全部注册）。</p>
-    <textarea id="model-whitelist" class="quota-input quota-whitelist-input" rows="5" spellcheck="false" autocapitalize="off" placeholder="claude&#10;gpt-6&#10;deepseek-v4&#10;glm-5*"></textarea>
+    <p class="quota-description">只有命中下列关键词/模式的模型才会注册（每行一个，也支持逗号分隔；支持 * 通配，按全名匹配，建议写成 *关键词*，如 *glm-5*；留空表示全部注册）。</p>
+    <textarea id="model-whitelist" class="quota-input quota-whitelist-input" rows="5" spellcheck="false" autocapitalize="off" placeholder="claude&#10;gpt-6&#10;deepseek-v4&#10;*glm-5*"></textarea>
     <div class="quota-whitelist-actions">
       <button id="save-whitelist" class="quota-refresh" type="button">保存白名单</button>
       <span id="whitelist-status" class="quota-status" role="status"></span>

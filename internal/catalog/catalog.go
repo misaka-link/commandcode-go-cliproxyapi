@@ -141,7 +141,7 @@ type Manager struct {
 	cfg    config.Config
 	client HostClient
 
-	mu sync.Mutex
+	mu sync.RWMutex
 	// raw retains the decoded upstream entries behind the current snapshot
 	// so SeedFrom can rebuild records against a NEW config (route overrides,
 	// protocol flags, and prefix settings may all have changed since the
@@ -498,11 +498,24 @@ func (m *Manager) Lookup(id string) (ModelRecord, bool) {
 // All returns every upstream catalog entry, including filtered-out ones,
 // with the exclusion reason (empty when published).
 func (m *Manager) All() []CatalogEntry {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	out := make([]CatalogEntry, len(m.all))
 	copy(out, m.all)
 	return out
+}
+
+// Snapshot returns the catalog entries and published models from one
+// consistent snapshot so callers cannot observe a torn view across a
+// concurrent refresh.
+func (m *Manager) Snapshot() ([]CatalogEntry, []ModelRecord) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	all := make([]CatalogEntry, len(m.all))
+	copy(all, m.all)
+	models := make([]ModelRecord, len(m.models))
+	copy(models, m.models)
+	return all, models
 }
 
 func (m *Manager) Unsupported() []UnsupportedModel {

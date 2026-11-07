@@ -296,10 +296,14 @@ func (c Config) ModelBlocked(upstreamID, publicID string) bool {
 // It returns whether the model is published and, when excluded, the reason
 // recorded in catalog diagnostics.
 func (c Config) ModelSelected(upstreamID, publicID string) (bool, string) {
-	if c.ModelBlocked(upstreamID, publicID) {
+	ids := []string{upstreamID, publicID}
+	if alias := c.ModelAliasFor(upstreamID, publicID); alias != "" {
+		ids = append(ids, alias)
+	}
+	if len(c.ModelBlacklist) > 0 && matchesAnyEntry(c.ModelBlacklist, ids...) {
 		return false, "excluded by model-blacklist"
 	}
-	if !c.ModelAllowed(upstreamID, publicID) {
+	if len(c.ModelWhitelist) > 0 && !matchesAnyEntry(c.ModelWhitelist, ids...) {
 		return false, "excluded by model-whitelist"
 	}
 	return true, ""
@@ -309,9 +313,13 @@ func (c Config) ModelSelected(upstreamID, publicID string) (bool, string) {
 // entries with * or ? are wildcards, and everything else is a
 // case-insensitive substring keyword. Both the upstream and public ids are
 // tested.
-func matchesAnyEntry(entries []string, upstreamID, publicID string) bool {
-	upstream := strings.ToLower(upstreamID)
-	public := strings.ToLower(publicID)
+func matchesAnyEntry(entries []string, ids ...string) bool {
+	normalized := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if value := strings.ToLower(strings.TrimSpace(id)); value != "" {
+			normalized = append(normalized, value)
+		}
+	}
 	for _, raw := range entries {
 		pattern := strings.ToLower(strings.TrimSpace(raw))
 		if pattern == "" {
@@ -319,19 +327,28 @@ func matchesAnyEntry(entries []string, upstreamID, publicID string) bool {
 		}
 		if strings.HasPrefix(pattern, "=") {
 			exact := strings.TrimSpace(strings.TrimPrefix(pattern, "="))
-			if exact != "" && (upstream == exact || public == exact) {
-				return true
+			if exact == "" {
+				continue
+			}
+			for _, id := range normalized {
+				if id == exact {
+					return true
+				}
 			}
 			continue
 		}
 		if strings.ContainsAny(pattern, "*?") {
-			if wildcardMatch(pattern, upstream) || wildcardMatch(pattern, public) {
-				return true
+			for _, id := range normalized {
+				if wildcardMatch(pattern, id) {
+					return true
+				}
 			}
 			continue
 		}
-		if strings.Contains(upstream, pattern) || strings.Contains(public, pattern) {
-			return true
+		for _, id := range normalized {
+			if strings.Contains(id, pattern) {
+				return true
+			}
 		}
 	}
 	return false

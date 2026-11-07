@@ -152,7 +152,7 @@ func windowBucket(label string, w quotaWindow) pluginapi.QuotaBucket {
 	if w.Cap > 0 {
 		remaining := math.Max(w.Cap-w.Used, 0)
 		b.RemainingFraction = fraction(remaining, w.Cap)
-		b.Description = fmt.Sprintf("%s / %s", num(w.Used), num(w.Cap))
+		b.Description = fmt.Sprintf("已用 %s / 上限 %s", num(w.Used), num(w.Cap))
 	} else {
 		b.RemainingFraction = 1
 		b.Description = "不限"
