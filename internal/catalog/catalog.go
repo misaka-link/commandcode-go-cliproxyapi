@@ -73,6 +73,15 @@ type ModelRecord struct {
 	Thinking     *pluginapi.ThinkingSupport
 }
 
+// CatalogEntry describes one upstream catalog model and whether it was
+// published, including the reason it was excluded.
+type CatalogEntry struct {
+	UpstreamID     string `json:"upstream_id"`
+	PublicID       string `json:"public_id"`
+	DisplayName    string `json:"display_name,omitempty"`
+	ExcludedReason string `json:"excluded_reason,omitempty"`
+}
+
 // UnsupportedModel is a discovered model excluded from the routable set,
 // retained for diagnostics (FR-004, open questions §10).
 type UnsupportedModel struct {
@@ -139,6 +148,9 @@ type Manager struct {
 	// snapshot was built).
 	raw    []rawModel
 	models []ModelRecord
+	// all retains every upstream catalog entry, including filtered-out ones,
+	// with the reason it was excluded (empty when published).
+	all []CatalogEntry
 	// index maps both PublicID and UpstreamID to their record so ID
 	// resolution is O(1); rebuilt atomically with models on every swap.
 	index map[string]ModelRecord
@@ -249,12 +261,27 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 	var warns []string
 	warns = append(warns, extraWarns...)
 	seen := make(map[string]bool, len(entries))
+	all := make([]CatalogEntry, 0, len(entries))
+	addAll := func(e rawModel, publicID, reason string) {
+		display := e.DisplayName
+		if display == "" {
+			display = e.ID
+		}
+		all = append(all, CatalogEntry{
+			UpstreamID:     e.ID,
+			PublicID:       publicID,
+			DisplayName:    display,
+			ExcludedReason: reason,
+		})
+	}
 	for _, e := range entries {
 		if e.ID == "" {
+			addAll(e, "", "missing id")
 			unsup = append(unsup, UnsupportedModel{Reason: "missing id"})
 			continue
 		}
 		if seen[e.ID] {
+			addAll(e, m.publicIDFor(e.ID), "duplicate model")
 			warns = append(warns, fmt.Sprintf("duplicate model %q ignored; keeping first occurrence", e.ID))
 			continue
 		}
@@ -264,6 +291,7 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 			warns = append(warns, warn)
 		}
 		if !ok {
+			addAll(e, m.publicIDFor(e.ID), "no route determined")
 			unsup = append(unsup, UnsupportedModel{UpstreamID: e.ID, Reason: "no route determined"})
 			continue
 		}
@@ -271,10 +299,9 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 			// Flags apply at snapshot build; a stale snapshot kept per
 			// FR-002 reflects the flags it was built with until the next
 			// successful refresh.
-			unsup = append(unsup, UnsupportedModel{
-				UpstreamID: e.ID,
-				Reason:     fmt.Sprintf("protocol %s disabled by config", route),
-			})
+			reason := fmt.Sprintf("protocol %s disabled by config", route)
+			addAll(e, m.publicIDFor(e.ID), reason)
+			unsup = append(unsup, UnsupportedModel{UpstreamID: e.ID, Reason: reason})
 			continue
 		}
 		if endpoint != "" && endpointEscapesBase(m.cfg.BaseURL, endpoint) {
@@ -284,10 +311,9 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 			// against a bare-host base-url turns the base into userinfo
 			// and would send credentials/prompts to an attacker host
 			// (spec 05 §2 trust boundary).
-			unsup = append(unsup, UnsupportedModel{
-				UpstreamID: e.ID,
-				Reason:     "resolved endpoint escapes the configured upstream host",
-			})
+			reason := "resolved endpoint escapes the configured upstream host"
+			addAll(e, m.publicIDFor(e.ID), reason)
+			unsup = append(unsup, UnsupportedModel{UpstreamID: e.ID, Reason: reason})
 			continue
 		}
 		if endpoint == "" {
@@ -297,6 +323,7 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 		// never enter the routable snapshot, so they are not registered with the
 		// host or exposed via /v1/models.
 		if selected, reason := m.cfg.ModelSelected(e.ID, config.PublicID(m.cfg, e.ID)); !selected {
+			addAll(e, m.publicIDFor(e.ID), reason)
 			unsup = append(unsup, UnsupportedModel{UpstreamID: e.ID, Reason: reason})
 			continue
 		}
@@ -309,7 +336,7 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 		// Model aliases (OAuth-alias style) replace the client-visible id; the
 		// original public id is not published when an alias or strip-prefix
 		// applies.
-		publicID := m.cfg.ModelAliasFor(e.ID, config.PublicID(m.cfg, e.ID))
+		publicID := m.publicIDFor(e.ID)
 		rec := ModelRecord{
 			PublicID:     publicID,
 			UpstreamID:   e.ID,
@@ -332,23 +359,30 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 		// role, and a record's own public==upstream rewrite is not a clash.
 		if other, ok := index[rec.PublicID]; ok {
 			reason := fmt.Sprintf("public id %q collides with upstream id %q", rec.PublicID, other.UpstreamID)
+			addAll(e, rec.PublicID, reason)
 			warns = append(warns, reason)
 			unsup = append(unsup, UnsupportedModel{UpstreamID: e.ID, Reason: reason})
 			continue
 		}
 		if other, ok := index[rec.UpstreamID]; ok {
 			reason := fmt.Sprintf("public id %q collides with upstream id %q", other.PublicID, rec.UpstreamID)
+			addAll(e, rec.PublicID, reason)
 			warns = append(warns, reason)
 			unsup = append(unsup, UnsupportedModel{UpstreamID: e.ID, Reason: reason})
 			continue
 		}
+		addAll(e, publicID, "")
 		models = append(models, rec)
 		index[rec.PublicID] = rec
 		index[rec.UpstreamID] = rec
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.raw, m.models, m.index, m.unsup, m.warns = entries, models, index, unsup, warns
+	m.raw, m.models, m.index, m.unsup, m.warns, m.all = entries, models, index, unsup, warns, all
+}
+
+func (m *Manager) publicIDFor(id string) string {
+	return m.cfg.ModelAliasFor(id, config.PublicID(m.cfg, id))
 }
 
 // protocolEnabled reports whether the resolved route's protocol flag is on
@@ -461,6 +495,16 @@ func (m *Manager) Lookup(id string) (ModelRecord, bool) {
 }
 
 // Unsupported returns models excluded from the routable set with reasons.
+// All returns every upstream catalog entry, including filtered-out ones,
+// with the exclusion reason (empty when published).
+func (m *Manager) All() []CatalogEntry {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]CatalogEntry, len(m.all))
+	copy(out, m.all)
+	return out
+}
+
 func (m *Manager) Unsupported() []UnsupportedModel {
 	m.mu.Lock()
 	defer m.mu.Unlock()

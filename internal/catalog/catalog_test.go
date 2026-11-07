@@ -1238,3 +1238,33 @@ func TestModelAliasReplacesPublicID(t *testing.T) {
 		t.Fatalf("alias lookup = %+v ok=%v", rec, ok)
 	}
 }
+
+func TestAllRetainsFilteredModels(t *testing.T) {
+	body := `{"data":[
+		{"id":"moonshotai/Kimi-K3"},
+		{"id":"deepseek/deepseek-v4.1-flash"},
+		{"id":"Qwen/Qwen3.8-Max"}
+	]}`
+	cfg := testCfg()
+	cfg.ModelWhitelist = []string{"kimi", "deepseek"}
+	fc := &fakeClient{resp: pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(body)}}
+	m := newManager(cfg, fc)
+	mustRefresh(t, m)
+	all := m.All()
+	if len(all) != 3 {
+		t.Fatalf("all = %d entries, want 3 (%#v)", len(all), all)
+	}
+	byID := map[string]CatalogEntry{}
+	for _, entry := range all {
+		byID[entry.UpstreamID] = entry
+	}
+	if got := byID["moonshotai/Kimi-K3"].ExcludedReason; got != "" {
+		t.Errorf("Kimi excluded reason = %q, want published", got)
+	}
+	if got := byID["deepseek/deepseek-v4.1-flash"].ExcludedReason; got != "" {
+		t.Errorf("DeepSeek excluded reason = %q, want published", got)
+	}
+	if got := byID["Qwen/Qwen3.8-Max"].ExcludedReason; got != "excluded by model-whitelist" {
+		t.Errorf("Qwen excluded reason = %q", got)
+	}
+}

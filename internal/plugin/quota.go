@@ -12,6 +12,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 
+	"commandcode-go-cliproxyapi/internal/catalog"
 	"commandcode-go-cliproxyapi/resources"
 )
 
@@ -187,9 +188,57 @@ func accountCard(entry pluginapi.HostAuthFileEntry) quotaCard {
 		Disabled: entry.Disabled || entry.Status == "disabled", Status: entry.Status}
 }
 
+// modelsManagement returns the full upstream catalog (including filtered-out
+// entries and their reasons) plus the models actually published.
+func (m *Manager) modelsManagement() (pluginapi.ManagementResponse, error) {
+	m.mu.RLock()
+	mgr := m.mgr
+	m.mu.RUnlock()
+	type publishedModel struct {
+		ID          string `json:"id"`
+		UpstreamID  string `json:"upstream_id"`
+		DisplayName string `json:"display_name,omitempty"`
+		Protocol    string `json:"protocol,omitempty"`
+	}
+	resp := struct {
+		Counts struct {
+			Total     int `json:"total"`
+			Published int `json:"published"`
+			Excluded  int `json:"excluded"`
+		} `json:"counts"`
+		Raw       []catalog.CatalogEntry `json:"raw"`
+		Published []publishedModel       `json:"published"`
+	}{}
+	if mgr != nil {
+		resp.Raw = mgr.All()
+		for _, rec := range mgr.Models() {
+			resp.Published = append(resp.Published, publishedModel{
+				ID:          rec.PublicID,
+				UpstreamID:  rec.UpstreamID,
+				DisplayName: rec.DisplayName,
+				Protocol:    string(rec.Protocol),
+			})
+		}
+	}
+	resp.Counts.Total = len(resp.Raw)
+	resp.Counts.Published = len(resp.Published)
+	resp.Counts.Excluded = resp.Counts.Total - resp.Counts.Published
+	body, err := json.Marshal(resp)
+	if err != nil {
+		return managementError(http.StatusInternalServerError, "encode models failed")
+	}
+	return pluginapi.ManagementResponse{
+		Headers: http.Header{"Content-Type": {"application/json"}, "Cache-Control": {"no-store"}},
+		Body:    body,
+	}, nil
+}
+
 func (m *Manager) HandleManagement(ctx context.Context, req pluginapi.ManagementRequest) (pluginapi.ManagementResponse, error) {
 	if req.Method == http.MethodGet && req.Path == "/v0/resource/plugins/"+pluginName+"/quota" {
 		return pluginapi.ManagementResponse{Headers: http.Header{"Content-Type": []string{"text/html; charset=utf-8"}}, Body: []byte(resources.QuotaPage)}, nil
+	}
+	if req.Method == http.MethodGet && req.Path == "/v0/management/plugins/"+pluginName+"/models" {
+		return m.modelsManagement()
 	}
 	if req.Method == http.MethodGet && req.Path == "/v0/resource/plugins/"+pluginName+"/oauth" {
 		return pluginapi.ManagementResponse{Headers: http.Header{"Content-Type": {"text/html; charset=utf-8"}, "Cache-Control": {"no-store"}, "Referrer-Policy": {"no-referrer"}}, Body: []byte(resources.OAuthPage)}, nil

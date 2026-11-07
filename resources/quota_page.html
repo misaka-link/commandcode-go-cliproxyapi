@@ -92,6 +92,13 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
 .quota-whitelist-input { width: 100%; min-height: 104px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .quota-whitelist-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
 .quota-alias-toggle { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; color: var(--text-secondary); }
+.quota-table-wrap { overflow-x: auto; margin: 8px 0 16px; }
+.quota-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.quota-table th, .quota-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid rgba(128, 128, 128, .25); vertical-align: top; }
+.quota-table th { color: var(--text-secondary); font-weight: 600; }
+.quota-badge { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 12px; }
+.quota-badge-ok { background: rgba(34, 197, 94, .12); color: #16a34a; }
+.quota-badge-excluded { background: rgba(239, 68, 68, .12); color: #dc2626; }
 </style>
 </head>
 <body>
@@ -153,6 +160,29 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
       <span id="aliases-status" class="quota-status" role="status"></span>
     </div>
   </section>
+  <section class="quota-whitelist">
+    <h2 class="quota-whitelist-title">模型列表</h2>
+    <p class="quota-description">「未过滤」展示上游目录返回的全部模型（含被白名单/黑名单/协议过滤掉的）；public ID 为经过前缀/别名后的 ID。「过滤后」是实际注册/发布的模型。</p>
+    <div class="quota-whitelist-actions">
+      <button id="refresh-models" class="quota-refresh" type="button">刷新模型列表</button>
+      <span id="models-status" class="quota-status" role="status"></span>
+    </div>
+    <div id="models-summary" class="quota-description"></div>
+    <h3 class="quota-whitelist-title">未过滤（原始目录）</h3>
+    <div class="quota-table-wrap">
+      <table class="quota-table">
+        <thead><tr><th>上游 ID</th><th>public ID</th><th>状态</th></tr></thead>
+        <tbody id="models-raw"></tbody>
+      </table>
+    </div>
+    <h3 class="quota-whitelist-title">过滤后（实际发布）</h3>
+    <div class="quota-table-wrap">
+      <table class="quota-table">
+        <thead><tr><th>public ID</th><th>上游 ID</th><th>协议</th></tr></thead>
+        <tbody id="models-published"></tbody>
+      </table>
+    </div>
+  </section>
   <form id="save-form" class="quota-form" autocomplete="off">
     <label class="quota-field-label" for="api-key">API key</label>
     <input id="api-key" class="quota-input" type="password" autocomplete="off" spellcheck="false" autocapitalize="off">
@@ -207,11 +237,17 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
   const aliasStripPrefix = document.getElementById("alias-strip-prefix");
   const saveAliasesButton = document.getElementById("save-aliases");
   const aliasesStatus = document.getElementById("aliases-status");
+  const modelsRawBody = document.getElementById("models-raw");
+  const modelsPublishedBody = document.getElementById("models-published");
+  const modelsSummary = document.getElementById("models-summary");
+  const refreshModelsButton = document.getElementById("refresh-models");
+  const modelsStatus = document.getElementById("models-status");
   const marker = "/v0/resource/plugins/commandcode-go-cliproxyapi/quota";
   const prefix = location.pathname.endsWith(marker) ? location.pathname.slice(0, -marker.length) : "";
   const quotaEndpoint = prefix + "/v0/management/plugins/commandcode-go-cliproxyapi/quota-usage";
   const accountsEndpoint = prefix + "/v0/management/plugins/commandcode-go-cliproxyapi/accounts";
   const configEndpoint = prefix + "/v0/management/plugins/commandcode-go-cliproxyapi/config";
+  const modelsEndpoint = prefix + "/v0/management/plugins/commandcode-go-cliproxyapi/models";
   const storageKey = "commandcode-go-cliproxyapi:quota";
   const values = new Map();
   const labels = new Map();
@@ -399,6 +435,58 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
       saveAliasesButton.disabled = false;
     });
   }
+  function setModelsStatus(message, isError) {
+    modelsStatus.className = message ? (isError ? "quota-status quota-error" : "quota-status quota-success") : "quota-status";
+    modelsStatus.textContent = message || "";
+  }
+  function modelCell(text) {
+    const td = document.createElement("td");
+    td.textContent = text || "-";
+    return td;
+  }
+  function renderModels(data) {
+    const raw = Array.isArray(data && data.raw) ? data.raw : [];
+    const published = Array.isArray(data && data.published) ? data.published : [];
+    const counts = (data && data.counts) || {};
+    modelsSummary.textContent = "共 " + (counts.total ?? raw.length) + " 个 · 发布 " + (counts.published ?? published.length) + " · 排除 " + (counts.excluded ?? Math.max(0, raw.length - published.length));
+    modelsRawBody.textContent = "";
+    raw.forEach(item => {
+      const tr = document.createElement("tr");
+      tr.appendChild(modelCell(item.upstream_id));
+      tr.appendChild(modelCell(item.public_id));
+      const td = document.createElement("td");
+      const badge = document.createElement("span");
+      if (item.excluded_reason) {
+        badge.className = "quota-badge quota-badge-excluded";
+        badge.textContent = item.excluded_reason;
+      } else {
+        badge.className = "quota-badge quota-badge-ok";
+        badge.textContent = "已发布";
+      }
+      td.appendChild(badge);
+      tr.appendChild(td);
+      modelsRawBody.appendChild(tr);
+    });
+    modelsPublishedBody.textContent = "";
+    published.forEach(item => {
+      const tr = document.createElement("tr");
+      tr.appendChild(modelCell(item.id));
+      tr.appendChild(modelCell(item.upstream_id));
+      tr.appendChild(modelCell(item.protocol));
+      modelsPublishedBody.appendChild(tr);
+    });
+    setModelsStatus("已加载。", false);
+  }
+  function loadModels() {
+    if (refreshModelsButton.disabled) return;
+    refreshModelsButton.disabled = true;
+    setModelsStatus("正在加载…", false);
+    apiRequest("GET", modelsEndpoint).then(data => {
+      renderModels(data);
+    }).catch(err => setModelsStatus("加载失败：" + (err.message || "请求失败"), true)).then(() => {
+      refreshModelsButton.disabled = false;
+    });
+  }
   function setSaveStatus(message, isError) {
     saveStatus.className = message ? (isError ? "quota-status quota-error" : "quota-status quota-success") : "quota-status";
     saveStatus.textContent = message || "";
@@ -558,6 +646,7 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
     saveAliasesButton.disabled = true;
     aliasesInput.disabled = true;
     aliasStripPrefix.disabled = true;
+    refreshModelsButton.disabled = true;
     app.textContent = "";
     const p = document.createElement("p"); p.className = "quota-error"; p.setAttribute("role", "status"); p.textContent = "Enable Remember password in Management Center to use this page."; app.appendChild(p);
     return;
@@ -570,6 +659,8 @@ body { margin: 0; padding: 32px; color: var(--text-primary); background: var(--b
   loadWhitelist();
   loadBlacklist();
   loadAliases();
+  refreshModelsButton.addEventListener("click", loadModels);
+  loadModels();
   loadList();
 })();
 </script>

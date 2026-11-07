@@ -2,6 +2,18 @@
 
 本文件记录面向使用者的更新摘要。详细版本历史见 [RELEASE_NOTES.md](RELEASE_NOTES.md)，操作步骤见 [中文说明](README.zh-CN.md) / [English README](README.md)。
 
+## v0.2.4 — 2026-11-07
+
+- 插件页面新增「模型列表」：并排展示**未过滤的原始目录**（含每个模型的排除原因）与**过滤后实际发布**的列表。
+- 新增管理接口 `GET /v0/management/plugins/commandcode-go-cliproxyapi/models`，返回 `counts` / `raw`（上游 ID、public ID、排除原因）/ `published`（实际发布 ID、上游 ID、协议）。
+- Catalog 现在保留全部上游条目及排除原因（白名单、黑名单、协议、路由、冲突等），便于诊断。
+
+### v0.2.4 English highlights — 2026-11-07
+
+- The plugin page now shows a **Model lists** section: the **unfiltered upstream catalog** (with each model's exclusion reason) next to the **filtered/published** list.
+- New management endpoint `GET /v0/management/plugins/commandcode-go-cliproxyapi/models` returning `counts` / `raw` (upstream id, public id, exclusion reason) / `published` (published id, upstream id, protocol).
+- The catalog now retains every upstream entry and its exclusion reason (whitelist, blacklist, protocol, route, collision, ...) for diagnostics.
+
 ## v0.2.3 — 2026-11-07
 
 - 新增 **OAuth 风格模型别名**：`model-aliases`（`{name, alias}`）把模型重命名为别名，**原模型不再发布**。

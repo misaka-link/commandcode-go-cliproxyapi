@@ -65,6 +65,7 @@ Without this plugin, a manual CommandCode GOAT / Pro / Max integration must mana
 - **Capability-aware Reasoning Controls**: valid catalog `thinking` metadata supplies capability checks and budget bounds to the relevant conversion paths. `route-overrides` only selects a protocol and endpoint; it cannot declare thinking capabilities. Without a declaration, upstream acceptance is authoritative. `auto`/`none` are not universally omitted; see Reasoning effort below.
 - **Dynamic Catalog Discovery**: remote catalog with local fallback, deduplication, and diagnostics for what was excluded. Discovery runs only when at least one account is enabled.
 - **CommandCode accounts and quota**: Management Center menu **CommandCode**, page **CommandCode accounts and quota** (CommandCode账户与额度). Paste an API key and save it as an auth file, then see each account's email, plan, remaining plan credits, and the rolling 5-hour/weekly windows (used, cap, reset time). Each card refreshes on demand. The plugin can start with no accounts.
+- **Model lists**: the same page shows the **unfiltered upstream catalog** (with each model's exclusion reason) next to the **filtered/published** list, so you can see exactly what the whitelist, blacklist, prefix, and aliases did. The data comes from `GET /v0/management/plugins/commandcode-go-cliproxyapi/models`.
 - **Host auth scheduling**: enabled auth-file accounts are shared across protocols by CLIProxyAPI's scheduler. Plugin config does not hold a key pool, and a retired `api-keys` block is not imported into one.
 
 ## Requirements
